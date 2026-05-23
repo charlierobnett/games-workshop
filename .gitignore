@@ -36,3 +36,14 @@ staticwebapp.config.local.json
 
 # Misc
 *.local
+
+# Asset packs and zip originals — kept locally, never committed
+# Pattern: ignore everything under shared/assets/ and shared/_originals/
+# except the asset README that documents where packs come from.
+shared/assets/**
+!shared/assets/README.md
+shared/_originals/
+
+# Kenney Asset Launcher (if extracted anywhere inside the repo)
+*Kenney Game Assets Launcher*/
+*Kenney*Launcher*/
