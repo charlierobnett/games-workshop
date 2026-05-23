@@ -32,8 +32,14 @@ export default class GameScene extends Phaser.Scene {
     this.enemyDropPending = false;
 
     // Groups
-    this.playerBullets = this.physics.add.group();
-    this.enemyBullets = this.physics.add.group();
+    this.playerBullets = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      allowGravity: false
+    });
+    this.enemyBullets = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      allowGravity: false
+    });
     this.enemies = this.physics.add.group();
     this.meteors = this.physics.add.group();
     this.powerups = this.physics.add.group();
@@ -199,7 +205,7 @@ export default class GameScene extends Phaser.Scene {
     if (living.length === 0) return;
 
     const shooter = Phaser.Utils.Array.GetRandom(living);
-    this.fireBullet(shooter.x, shooter.y + 20, 0, 280, 'laserRed');
+    this.fireBullet(shooter.x, shooter.y + 35, 0, 280, 'laserRed');
   }
 
   bossShoot() {
@@ -219,16 +225,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   fireBullet(x, y, vx, vy, texture) {
-    const bullet = this.physics.add.sprite(x, y, texture);
+    const group = texture === 'laserRed' ? this.enemyBullets : this.playerBullets;
+    const bullet = group.create(x, y, texture);
     bullet.setScale(0.7);
-    bullet.setVelocity(vx, vy);
     bullet.setDepth(8);
-
-    if (texture === 'laserRed') {
-      this.enemyBullets.add(bullet);
-    } else {
-      this.playerBullets.add(bullet);
-    }
+    bullet.setVelocity(vx, vy);
 
     this.time.delayedCall(3000, () => { if (bullet.active) bullet.destroy(); });
     return bullet;
@@ -481,7 +482,7 @@ export default class GameScene extends Phaser.Scene {
 
   playerFire() {
     const x = this.player.x;
-    const y = this.player.y - 30;
+    const y = this.player.y - 45;
 
     if (this.tripleShot) {
       this.fireBullet(x, y, -120, -550, 'laserBlue');
