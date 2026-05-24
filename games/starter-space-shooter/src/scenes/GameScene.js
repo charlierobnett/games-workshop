@@ -26,6 +26,7 @@ export default class GameScene extends Phaser.Scene {
     this.shieldActive = false;
     this.tripleShot = false;
     this.shieldGraphic = null;
+    this.playerInvulnerable = false;
 
     // Enemy direction state
     this.enemyDir = 1;
@@ -42,7 +43,10 @@ export default class GameScene extends Phaser.Scene {
     });
     this.enemies = this.physics.add.group();
     this.meteors = this.physics.add.group();
-    this.powerups = this.physics.add.group();
+    this.powerups = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      allowGravity: false
+    });
 
     // Player
     this.player = this.physics.add.sprite(W / 2, H - 60, 'player');
@@ -164,6 +168,8 @@ export default class GameScene extends Phaser.Scene {
     this.boss = this.physics.add.sprite(W / 2, -60, 'boss');
     this.boss.setScale(2);
     this.boss.setDepth(5);
+    this.boss.body.setAllowGravity(false);
+    this.boss.setImmovable(true);
 
     // Fly boss in
     this.tweens.add({
@@ -187,7 +193,7 @@ export default class GameScene extends Phaser.Scene {
     const W = this.cameras.main.width;
     this.tweens.add({
       targets: this.boss,
-      x: { from: W * 0.2, to: W * 0.8 },
+      x: W * 0.8,
       duration: 2000 - (this.bossHP < 15 ? 600 : 0),
       yoyo: true, repeat: -1, ease: 'Sine.InOut'
     });
@@ -255,12 +261,11 @@ export default class GameScene extends Phaser.Scene {
     if (Math.random() > 0.25) return;
     const types = ['powerupFire', 'powerupShield', 'powerupStar'];
     const type = Phaser.Utils.Array.GetRandom(types);
-    const p = this.physics.add.sprite(x, y, type);
+    const p = this.powerups.create(x, y, type);
     p.setScale(0.8);
     p.setVelocity(0, 70);
     p.setDepth(6);
     p.powerType = type;
-    this.powerups.add(p);
     this.time.delayedCall(8000, () => { if (p.active) p.destroy(); });
   }
 
@@ -351,6 +356,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   hitPlayer() {
+    if (this.playerInvulnerable) return;
+
     if (this.shieldActive) {
       this.shieldActive = false;
       if (this.shieldGraphic) { this.shieldGraphic.destroy(); this.shieldGraphic = null; }
@@ -358,14 +365,17 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.playerInvulnerable = true;
     this.lives--;
     this.livesText.setText(`LIVES: ${this.lives}`);
     this.cameras.main.shake(120, 0.015);
     this.spawnFlash(this.player.x, this.player.y);
 
-    // Invincibility flicker
     this.player.setAlpha(0.3);
-    this.time.delayedCall(1800, () => { if (this.player.active) this.player.setAlpha(1); });
+    this.time.delayedCall(1800, () => {
+      if (this.player.active) this.player.setAlpha(1);
+      this.playerInvulnerable = false;
+    });
 
     if (this.lives <= 0) {
       this.time.delayedCall(300, () => this.endGame(false));
@@ -378,7 +388,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (type === 'powerupFire') {
       this.fireRate = FIRE_RATE_RAPID;
-      this.powerupLabel.setText('RAPID FIRE!').setFill('#ffaa00');
+      this.powerupLabel.setText('RAPID FIRE!').setColor('#ffaa00');
       this.time.delayedCall(POWERUP_DURATION, () => {
         this.fireRate = FIRE_RATE_DEFAULT;
         this.powerupLabel.setText('');
@@ -387,7 +397,7 @@ export default class GameScene extends Phaser.Scene {
       this.shieldActive = true;
       if (this.shieldGraphic) this.shieldGraphic.destroy();
       this.shieldGraphic = this.add.circle(0, 0, 30, 0x0088ff, 0.35).setDepth(9);
-      this.powerupLabel.setText('SHIELD ACTIVE').setFill('#44aaff');
+      this.powerupLabel.setText('SHIELD ACTIVE').setColor('#44aaff');
       this.time.delayedCall(POWERUP_DURATION, () => {
         this.shieldActive = false;
         if (this.shieldGraphic) { this.shieldGraphic.destroy(); this.shieldGraphic = null; }
@@ -395,7 +405,7 @@ export default class GameScene extends Phaser.Scene {
       });
     } else if (type === 'powerupStar') {
       this.tripleShot = true;
-      this.powerupLabel.setText('TRIPLE SHOT!').setFill('#ff88ff');
+      this.powerupLabel.setText('TRIPLE SHOT!').setColor('#ff88ff');
       this.time.delayedCall(POWERUP_DURATION, () => {
         this.tripleShot = false;
         this.powerupLabel.setText('');
@@ -431,7 +441,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(_time, delta) {
-    if (!this.gameActive) return;
+    if (!this.gameActive || !this.player || !this.cursors) return;
 
     // Scroll background
     this.bg.tilePositionY -= 1.5;
@@ -440,12 +450,11 @@ export default class GameScene extends Phaser.Scene {
     const H = this.cameras.main.height;
 
     // Player movement
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-280);
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(280);
-    } else {
-      this.player.setVelocityX(0);
+    if (this.player && this.player.body) {
+      let vx = 0;
+      if (this.cursors.left.isDown) vx = -280;
+      else if (this.cursors.right.isDown) vx = 280;
+      this.player.body.velocity.x = vx;
     }
 
     // Shield graphic follows player

@@ -1,0 +1,118 @@
+{
+  "game_name": "olympian-overdrive",
+  "files": [
+    {
+      "path": "package.json",
+      "purpose": "Defines Vite and Phaser dependencies plus scripts to run and build the Milestone 1 vertical slice.",
+      "depends_on": []
+    },
+    {
+      "path": "vite.config.js",
+      "purpose": "Configures Vite with the required relative base path for Azure Static Web Apps deployment.",
+      "depends_on": []
+    },
+    {
+      "path": "index.html",
+      "purpose": "Hosts the Phaser canvas and loads the Vite entry module.",
+      "depends_on": [
+        "src/main.js"
+      ]
+    },
+    {
+      "path": "staticwebapp.config.json",
+      "purpose": "Provides SPA navigation fallback to index.html for Azure Static Web Apps.",
+      "depends_on": []
+    },
+    {
+      "path": "src/main.js",
+      "purpose": "Creates the Phaser game instance, registers all scenes, and boots the FSM loop.",
+      "depends_on": [
+        "src/scenes/BootScene.js",
+        "src/scenes/MenuScene.js",
+        "src/scenes/ActiveScene.js",
+        "src/scenes/ResultScene.js"
+      ]
+    },
+    {
+      "path": "src/core/InputManager.js",
+      "purpose": "Centralizes Arrow keys plus Z/X input mapping into verb-based accessors shared by all scenes and controllers.",
+      "depends_on": []
+    },
+    {
+      "path": "src/core/GameManager.js",
+      "purpose": "Tracks score, lives, difficulty level, sport rotation, and result payloads across scene transitions.",
+      "depends_on": []
+    },
+    {
+      "path": "src/scenes/BootScene.js",
+      "purpose": "Preloads placeholder and sport assets, initializes shared managers, and transitions to the menu.",
+      "depends_on": [
+        "src/core/GameManager.js"
+      ]
+    },
+    {
+      "path": "src/scenes/MenuScene.js",
+      "purpose": "Shows the title and controls, starts the normal sport loop, and exposes debug key M for the mash-up round.",
+      "depends_on": [
+        "src/core/GameManager.js",
+        "src/core/InputManager.js"
+      ]
+    },
+    {
+      "path": "src/scenes/ActiveScene.js",
+      "purpose": "Runs a selected sport or mash-up by wiring one controller to one level manager and rendering the shared HUD.",
+      "depends_on": [
+        "src/core/GameManager.js",
+        "src/core/InputManager.js",
+        "src/sports/Pickleball/Controller_Pickleball.js",
+        "src/sports/Pickleball/LevelManager_Pickleball.js",
+        "src/sports/Soccer/Controller_Soccer.js",
+        "src/sports/Soccer/LevelManager_Soccer.js",
+        "src/sports/Mashups/Mashup_PickleSoccer.js"
+      ]
+    },
+    {
+      "path": "src/scenes/ResultScene.js",
+      "purpose": "Displays a brief success or fail overlay, updates progression through GameManager, and auto-rolls the next round.",
+      "depends_on": [
+        "src/core/GameManager.js"
+      ]
+    },
+    {
+      "path": "src/sports/Pickleball/Controller_Pickleball.js",
+      "purpose": "Implements side-to-side movement and a short-lived paddle strike hitbox using shared input verbs.",
+      "depends_on": [
+        "src/core/InputManager.js"
+      ]
+    },
+    {
+      "path": "src/sports/Pickleball/LevelManager_Pickleball.js",
+      "purpose": "Builds the pickleball court, kitchen zone, ball rules, deterministic serve, volley counting, and win/fail conditions.",
+      "depends_on": [
+        "src/core/GameManager.js"
+      ]
+    },
+    {
+      "path": "src/sports/Soccer/Controller_Soccer.js",
+      "purpose": "Implements side-to-side movement, facing-aware dash strike behavior, and charge timing for soccer kicks.",
+      "depends_on": [
+        "src/core/InputManager.js"
+      ]
+    },
+    {
+      "path": "src/sports/Soccer/LevelManager_Soccer.js",
+      "purpose": "Builds the soccer field, goal trigger, moving goalie hazard, heavy ball interactions, and soccer win/fail rules.",
+      "depends_on": [
+        "src/core/GameManager.js"
+      ]
+    },
+    {
+      "path": "src/sports/Mashups/Mashup_PickleSoccer.js",
+      "purpose": "Defines the debug mash-up configuration that pairs the pickleball controller with the soccer level manager.",
+      "depends_on": [
+        "src/sports/Pickleball/Controller_Pickleball.js",
+        "src/sports/Soccer/LevelManager_Soccer.js"
+      ]
+    }
+  ]
+}
