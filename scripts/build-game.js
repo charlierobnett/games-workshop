@@ -34,6 +34,24 @@ const HOUSE_RULES = `
 8. \`vite.config.js\`: \`export default { base: './' };\` — required for Azure Static Web Apps relative-path serving.
 9. Every game folder needs \`staticwebapp.config.json\` with SPA navigation fallback to \`/index.html\`.
 10. Use Arrow keys + Z (jump/dodge) + X (strike) via Phaser's keyboard plugin. Centralize in an InputManager module exporting verb-named accessors (e.g., \`isStrikePressed()\`).
+
+# Asset Key Namespace Contract (Round 2 — kills the v1/v2 contract-drift bug class)
+
+11. Never invent raw asset key strings in scene files, entity files, or gameplay files. All asset keys must come from the canonical manifest file (\`asset-keys.js\` or \`asset-keys.json\`).
+12. Every sport-specific asset key must use this exact format: \`{sport}_{role}_{variant}\` in lowercase snake_case. Variant is mandatory even when only one version exists (use \`default\`).
+13. Valid sport namespaces: \`pickleball\`, \`soccer\`, \`volleyball\`. Valid shared namespaces: \`boot\`, \`ui\`, \`shared\`.
+14. Banned generic keys: \`ball\`, \`player\`, \`court\`, \`net\`, \`goal\`. Banned reordered forms: \`ball_soccer\`, \`paddle_pickleball\`, etc.
+15. If an asset is needed and no manifest entry exists, do not guess. Add the required entry to the manifest first, then reference it from code.
+16. BootScene must preload all declared asset keys by iterating the canonical manifest. Do not hand-type preload keys inline.
+17. If uncertain about a key name, stop and use the manifest as the source of truth. Never paraphrase or normalize asset names.
+
+# Spec Fidelity Awareness (Round 2)
+
+Some spec contracts have lower natural fidelity than others. Pay EXTRA attention to:
+- **Game Feel Contract** (~55-65% predicted fidelity): hit-stop durations, particle counts, screen-shake amplitudes are easy to drop or soften. Honor exact values verbatim.
+- **Difficulty Contract** (~75-80%): preserve both the numbers AND the surrounding logic — numbers without correct triggering produces drift.
+
+Asset keys, physics constants, and QA assertions have high natural fidelity — those are easier. Spend your care budget on Feel and Difficulty.
 `.trim();
 
 function loadCredentials() {
