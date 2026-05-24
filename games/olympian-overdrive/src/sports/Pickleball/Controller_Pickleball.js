@@ -4,125 +4,142 @@ export default class Controller_Pickleball {
   constructor(scene, inputManager) {
     this.scene = scene;
     this.input = inputManager;
-
     this.player = null;
-
-    this.moveSpeed = 260;
-    this.paddleActiveMs = 450;
-
-    this.facing = 1;
-
-    this.weaponGroup = null;
-    this.weapon = null;
-
-    this._paddleActive = false;
-    this._paddleTimer = 0;
-
-    this._onStrikeDown = this._onStrikeDown.bind(this);
+    this.hitboxGroup = null;
+    this.paddleSprite = null;
+    this.paddleActive = false;
+    this.paddleDuration = 500;
+    this.moveSpeedX = 260;
+    this.moveSpeedY = 200;
+    this.bounds = {
+      minX: 100,
+      maxX: 540,
+      minY: 250,
+      maxY: 410
+    };
   }
 
-  attachToScene(scene) {
-    this.scene = scene;
-    return this;
-  }
-
-  init(player, collisionGroups) {
+  init(player) {
     this.player = player;
+    this.player.setCollideWorldBounds(false);
+    this.player.setDepth(10);
 
-    if (!this.weaponGroup) {
-      this.weaponGroup = this.scene.physics.add.group({
-        classType: Phaser.Physics.Arcade.Sprite,
-        allowGravity: false
-      });
-    }
+    this.hitboxGroup = this.scene.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      allowGravity: false
+    });
 
-    const { PlayerWeapon } = collisionGroups || {};
-    this.collisionGroups = collisionGroups || {};
-
-    if (this.weapon) {
-      this.weapon.destroy();
-      this.weapon = null;
-    }
-
-    this.weapon = this.weaponGroup.create(this.player.x, this.player.y, 'paddle');
-    this.weapon.setActive(false);
-    this.weapon.setVisible(false);
-    this.weapon.body.enable = false;
-
-    this.weapon.setDepth(10);
-    this.weapon.setOrigin(0.5, 0.5);
-
-    if (PlayerWeapon) {
-      this.weapon.body.setCollideWorldBounds(false);
-    }
-
-    this.scene.input.keyboard.off('keydown-X', this._onStrikeDown);
-    this.scene.input.keyboard.on('keydown-X', this._onStrikeDown);
-
-    this._paddleActive = false;
-    this._paddleTimer = 0;
+    this.paddleSprite = this.scene.add.image(this.player.x, this.player.y - 18, 'paddle');
+    this.paddleSprite.setVisible(false);
+    this.paddleSprite.setDepth(12);
+    this.paddleSprite.setRotation(-Math.PI / 2);
   }
 
-  _onStrikeDown() {
-    if (!this.player || !this.weapon) return;
-    this._activatePaddle();
-  }
+  update() {
+    if (!this.player) return;
 
-  _activatePaddle() {
-    if (this._paddleActive) return;
+    const axisX = this.input.Axis_Horizontal();
+    const axisY = this.input.Axis_Vertical();
 
-    this._paddleActive = true;
-    this._paddleTimer = this.scene.time.now + this.paddleActiveMs;
+    // Set velocity, but zero it at bounds so player can't push past the edge.
+    let vx = axisX * this.moveSpeedX;
+    let vy = axisY * this.moveSpeedY;
+    if (this.player.x <= this.bounds.minX && vx < 0) vx = 0;
+    if (this.player.x >= this.bounds.maxX && vx > 0) vx = 0;
+    if (this.player.y <= this.bounds.minY && vy < 0) vy = 0;
+    if (this.player.y >= this.bounds.maxY && vy > 0) vy = 0;
+    this.player.setVelocity(vx, vy);
 
-    const offsetX = 26 * this.facing;
-    const offsetY = 0;
-
-    this.weapon.setPosition(this.player.x + offsetX, this.player.y + offsetY);
-    this.weapon.setActive(true);
-    this.weapon.setVisible(true);
-    this.weapon.body.enable = true;
-
-    this.weapon.body.setVelocity(0, 0);
-  }
-
-  update(time, delta) {
-    if (!this.scene?.gameActive || !this.player) return;
-    if (!this.input) return;
-
-    const axis = this.input.Axis_Horizontal();
-    if (axis !== 0) this.facing = axis > 0 ? 1 : -1;
-
-    const body = this.player.body;
-    if (body) {
-      body.setVelocityX(axis * this.moveSpeed);
-    } else {
-      this.player.x += axis * this.moveSpeed * (delta / 1000);
+    if (this.input.isStrikeJustPressed() && !this.paddleActive) {
+      this.activatePaddle();
     }
 
-    if (this.input.isStrikePressed()) {
-      this._activatePaddle();
+    if (this.paddleActive) {
+      this.syncPaddle();
     }
+  }
 
-    if (this._paddleActive && this.scene.time.now >= this._paddleTimer) {
-      this._paddleActive = false;
-      if (this.weapon) {
-        this.weapon.setActive(false);
-        this.weapon.setVisible(false);
-        this.weapon.body.enable = false;
+  activatePaddle() {
+    if (!this.player || !this.hitboxGroup) return;
+
+    this.paddleActive = true;
+
+    const hitbox = this.hitboxGroup.create(this.player.x, this.player.y - 24, null);
+    hitbox.setVisible(false);
+    hitbox.setActive(true);
+    hitbox.body.setAllowGravity(false);
+    hitbox.body.setSize(40, 40);
+    hitbox.body.setOffset(-20, -20);
+    hitbox.body.moves = false;
+    hitbox.body.immovable = true;
+
+    this.paddleSprite.setVisible(true);
+    this.syncPaddle();
+
+    this.scene.time.delayedCall(this.paddleDuration, () => {
+      this.deactivatePaddle();
+    });
+  }
+
+  deactivatePaddle() {
+    this.paddleActive = false;
+    this.paddleSprite.setVisible(false);
+
+    if (!this.hitboxGroup) return;
+
+    this.hitboxGroup.children.each((child) => {
+      if (child && child.active) {
+        child.destroy();
       }
-    }
-
-    if (this._paddleActive && this.weapon) {
-      const offsetX = 26 * this.facing;
-      this.weapon.setPosition(this.player.x + offsetX, this.player.y);
-    }
+    });
   }
 
-  getPaddle() {
-    return this.weapon;
+  syncPaddle() {
+    if (!this.player) return;
+
+    const paddleX = this.player.x;
+    const paddleY = this.player.y - 24;
+
+    this.paddleSprite.setPosition(paddleX, paddleY);
+
+    if (!this.hitboxGroup) return;
+
+    this.hitboxGroup.children.each((child) => {
+      if (child && child.active) {
+        child.setPosition(paddleX, paddleY);
+        if (child.body) {
+          child.body.updateFromGameObject();
+        }
+      }
+    });
+  }
+
+  getHitbox() {
+    return this.hitboxGroup;
   }
 
   isPaddleActive() {
-    return this._paddleActive;
+    return this.paddleActive;
+  }
+
+  // Alias for LevelManager_Pickleball which calls isHitboxActive() — same concept.
+  isHitboxActive() {
+    return this.paddleActive;
+  }
+
+  destroy() {
+    this.deactivatePaddle();
+
+    if (this.paddleSprite) {
+      this.paddleSprite.destroy();
+      this.paddleSprite = null;
+    }
+
+    if (this.hitboxGroup) {
+      this.hitboxGroup.destroy(true);
+      this.hitboxGroup = null;
+    }
+
+    this.player = null;
   }
 }

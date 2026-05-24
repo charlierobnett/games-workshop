@@ -44,7 +44,8 @@ function loadCredentials() {
     endpoint: aoai.endpoint.replace(/\/$/, ''),
     key: aoai.key,
     manifestModel: aoai.deployments?.gpt5_4 || 'gpt-5-4',
-    genModel: aoai.deployments?.gpt5_4_nano || aoai.deployments?.gpt5_4 || 'gpt-5-4-nano'
+    // v2: file generation uses gpt-5.4 (not nano) — smarter defaults worth the cost
+    genModel: aoai.deployments?.gpt5_4 || aoai.deployments?.gpt5_4_nano || 'gpt-5-4'
   };
 }
 

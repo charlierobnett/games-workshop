@@ -1,12 +1,6 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/public/*", "/favicon.ico"]
-  },
-  "routes": [
-    {
-      "route": "/",
-      "rewrite": "/index.html"
-    }
-  ]
+    "exclude": ["/assets/*", "/*.png", "/*.jpg", "/*.jpeg", "/*.gif", "/*.svg", "/*.webp", "/*.ico", "/*.json"]
+  }
 }

@@ -1,326 +1,259 @@
 import Phaser from 'phaser';
-import GameManager from '../../core/GameManager.js';
 
 export default class LevelManager_Pickleball {
   constructor() {
     this.scene = null;
     this.controller = null;
-    this.gameManager = null;
-
-    this.gameActive = false;
-
-    this.kitchenZone = null;
     this.ball = null;
-
+    this.ai = null;
     this.volleyCount = 0;
     this.targetVolleys = 3;
-
-    this.timerMs = 15000;
-    this.timerEvent = null;
-
-    this.roundStartAt = 0;
-
-    this.playerWeaponGroup = null;
-    this.environmentHazardGroup = null;
-    this.ballGroup = null;
-
-    this.collisionSetupDone = false;
-
-    this.failFired = false;
-    this.winFired = false;
-
-    this.aiServePattern = [
-      { vx: 80, vy: -300 },
-      { vx: -70, vy: -320 },
-      { vx: 100, vy: -290 },
-      { vx: -90, vy: -310 },
-    ];
-    this.ballGravity = 700;
     this.serveIndex = 0;
-
-    this.groundY = 420;
-    this.courtLeft = 40;
-    this.courtRight = 600;
-    this.netY = 250;
+    this.lowerKitchenZone = null;
+    this.playerHitCooldown = false;
+    this.aiHitCooldown = false;
+    this.ended = false;
+    this.volleyText = null;
+    this.courtBounds = {
+      left: 80,
+      right: 560,
+      top: 60,
+      bottom: 420,
+      netY: 240,
+      playerMinY: 250,
+      playerMaxY: 410
+    };
+    this.servePatterns = [
+      { vx: 0, vy: 220 },
+      { vx: -60, vy: 220 },
+      { vx: 60, vy: 220 }
+    ];
   }
 
   init(scene, controller) {
     this.scene = scene;
     this.controller = controller;
-    this.gameManager = scene.gameManager instanceof GameManager ? scene.gameManager : scene.gameManager;
-
-    this.gameActive = true;
-    this.failFired = false;
-    this.winFired = false;
-
     this.volleyCount = 0;
-    this.targetVolleys = 3;
+    this.playerHitCooldown = false;
+    this.aiHitCooldown = false;
+    this.ended = false;
 
-    this.timerMs = 15000;
-
-    this.collisionSetupDone = false;
-
-    this.roundStartAt = Date.now();
-
-    this.buildCourt();
-    this.buildGroups();
-    this.buildKitchenZone();
-    this.buildBall();
-    this.buildAI();
-
-    this.startTimer();
+    this.createCourt();
+    this.createVolleyUi();
+    this.createAi();
+    this.createBall();
     this.setupCollisions();
-
-    this.serveBallDeterministically();
+    this.startServe();
   }
 
-  buildGroups() {
-    const physics = this.scene.physics;
+  createCourt() {
+    const g = this.scene.add.graphics();
+    g.lineStyle(4, 0xffffff, 1);
+    g.strokeRect(80, 60, 480, 360);
+    g.lineStyle(3, 0xffffff, 1);
+    g.lineBetween(80, 240, 560, 240);
 
-    this.playerWeaponGroup = physics.add.group({
-      classType: Phaser.Physics.Arcade.Sprite,
-      allowGravity: false,
-    });
+    g.fillStyle(0x1f8f4c, 0.18);
+    g.fillRect(80, 220, 480, 20);
+    g.fillRect(80, 240, 480, 20);
 
-    this.environmentHazardGroup = physics.add.group({
-      classType: Phaser.Physics.Arcade.Sprite,
-      allowGravity: false,
-    });
+    g.lineStyle(2, 0xd8fff0, 0.8);
+    g.strokeRect(80, 220, 480, 40);
 
-    this.ballGroup = physics.add.group({
-      classType: Phaser.Physics.Arcade.Sprite,
-      allowGravity: true,
-    });
+    this.lowerKitchenZone = this.scene.add.zone(320, 250, 480, 20);
+    this.scene.physics.add.existing(this.lowerKitchenZone, true);
   }
 
-  buildCourt() {
-    const { width, height } = this.scene.scale;
-
-    this.scene.cameras.main.setBackgroundColor('#071018');
-
-    const court = this.scene.add.rectangle(width / 2, height / 2 + 40, 560, 320, 0x0b2a3a, 0.95);
-    court.setStrokeStyle(2, 0x2ef2ff, 0.6);
-
-    const net = this.scene.add.rectangle(width / 2, this.netY, 560, 6, 0x00ffd5, 0.9);
-    net.setStrokeStyle(2, 0x7bff00, 0.35);
-
-    const floorGlow = this.scene.add.rectangle(width / 2, this.groundY + 10, 560, 30, 0x0a1b24, 0.9);
-    floorGlow.setStrokeStyle(2, 0x00aaff, 0.25);
-
-    const leftLine = this.scene.add.rectangle(this.courtLeft, this.groundY - 40, 2, 260, 0x2ef2ff, 0.8);
-    const rightLine = this.scene.add.rectangle(this.courtRight, this.groundY - 40, 2, 260, 0x2ef2ff, 0.8);
-
-    this.scene.add.text(20, 20, 'PICKLEBALL', { fontFamily: 'monospace', fontSize: '14px' }).setColor('#2ef2ff');
-    this.scene.add.text(width - 220, 20, 'VOLLEYS: 0/3', { fontFamily: 'monospace', fontSize: '14px' }).setColor('#7bff00');
-
-    this.volleyHudText = this.scene.add
-      .text(width - 220, 40, 'VOLLEYS: 0/3', { fontFamily: 'monospace', fontSize: '14px' })
-      .setColor('#7bff00');
-
-    this.scene.add.rectangle(width / 2, this.groundY + 40, 560, 10, 0x00ffd5, 0.12);
-
-    this.scene.add.text(20, height - 22, 'Avoid kitchen zone when paddle is active', { fontFamily: 'monospace', fontSize: '12px' }).setColor('#00ffd5');
+  createVolleyUi() {
+    this.volleyText = this.scene.add.text(320, 42, `VOLLEYS: ${this.volleyCount}/${this.targetVolleys}`, {
+      fontFamily: 'monospace',
+      fontSize: '14px'
+    }).setOrigin(0.5, 0.5).setDepth(1001);
+    this.volleyText.setColor('#ffffff');
   }
 
-  buildKitchenZone() {
-    const { width } = this.scene.scale;
-
-    const zoneW = 140;
-    const zoneH = 70;
-    const zoneX = width / 2;
-    const zoneY = this.groundY - 10;
-
-    this.kitchenZone = this.scene.add.rectangle(zoneX, zoneY, zoneW, zoneH, 0xff2e63, 0.18);
-    this.kitchenZone.setStrokeStyle(2, 0xff2e63, 0.55);
-
-    const zone = this.scene.add.zone(zoneX, zoneY, zoneW, zoneH);
-    this.scene.physics.add.existing(zone, false);
-
-    this.kitchenZone.physicsZone = zone;
-
-    this.scene.add.text(zoneX - 40, zoneY - 10, 'KITCHEN', { fontFamily: 'monospace', fontSize: '12px' }).setColor('#ff2e63');
+  createAi() {
+    this.ai = this.scene.physics.add.sprite(320, 100, 'player-ai-pickle');
+    this.ai.setCollideWorldBounds(false);
+    this.ai.setImmovable(true);
+    this.ai.body.setAllowGravity(false);
+    this.ai.body.moves = false;
   }
 
-  buildBall() {
-    const key = 'pickleball-ball';
-    const x = this.scene.scale.width / 2;
-    const y = this.netY + 40;
-
-    const ball = this.ballGroup.create(x, y, key);
-    ball.setOrigin(0.5, 0.5);
-
-    ball.setCollideWorldBounds(false);
-    ball.body.setAllowGravity(true);
-    ball.body.setGravityY(this.ballGravity);
-    ball.body.setImmovable(false);
-    ball.body.setVelocity(0, 0);
-    ball.body.setBounce(0.6, 0.6);
-
-    ball.setScale(2);
-
-    this.ball = ball;
-
-    this.scene.add.text(20, 40, 'TIME', { fontFamily: 'monospace', fontSize: '12px' }).setColor('#2ef2ff');
-    this.timeHudText = this.scene.add
-      .text(20, 58, '15.0', { fontFamily: 'monospace', fontSize: '16px' })
-      .setColor('#2ef2ff');
-  }
-
-  buildAI() {
-    this.ai = {
-      lastServeAt: 0,
-      serveCooldownMs: 0,
-    };
-  }
-
-  startTimer() {
-    if (this.timerEvent) this.timerEvent.remove(false);
-
-    this.roundStartAt = Date.now();
-
-    this.timerEvent = this.scene.time.addEvent({
-      delay: this.timerMs,
-      callback: () => {
-        this.triggerFail('timer');
-      },
-      callbackScope: this,
-    });
+  createBall() {
+    this.ball = this.scene.physics.add.sprite(320, 100, 'ball-pickle');
+    this.ball.body.setAllowGravity(false);
+    this.ball.setBounce(0.7, 0.7);
+    this.ball.setDrag(20, 20);
+    this.ball.setCollideWorldBounds(false);
+    this.ball.setCircle(Math.min(this.ball.width, this.ball.height) * 0.35);
   }
 
   setupCollisions() {
-    if (this.collisionSetupDone) return;
-    this.collisionSetupDone = true;
+    const hitboxGroup = this.controller.getHitbox();
 
-    const physics = this.scene.physics;
-
-    physics.add.overlap(this.playerWeaponGroup, this.kitchenZone.physicsZone, () => {
-      if (this.controller?.isPaddleActive?.() && !this.failFired && !this.winFired) {
-        this.triggerFail('kitchen');
-      }
+    this.scene.physics.add.overlap(hitboxGroup, this.ball, () => {
+      this.handlePlayerHit();
     });
 
-    physics.add.overlap(this.ballGroup, this.playerWeaponGroup, (ball, weapon) => {
-      if (this.failFired || this.winFired) return;
-
-      if (!this.controller?.isPaddleActive?.()) return;
-
-      this.onPaddleHit(ball, weapon);
-    });
-
-    // (removed buggy ball-kitchen auto-fail — ball passing over kitchen is not a fail)
-  }
-
-  onPaddleHit(ball) {
-    if (this.failFired || this.winFired) return;
-
-    this.volleyCount += 1;
-    this.updateVolleyHud();
-
-    const mult = this.gameManager?.getDifficultyMultiplier?.() ?? 1;
-    const speedBoost = 1 + Math.min(1.5, (this.volleyCount * 0.08 + this.gameManager?.difficultyLevel * 0.03) * mult);
-
-    const dir = ball.body.velocity.x >= 0 ? -1 : 1;
-    const baseVx = 100 * speedBoost * dir;
-    const baseVy = -260 * speedBoost;
-
-    ball.body.setVelocity(baseVx, baseVy);
-
-    this.scene.time.delayedCall(120, () => {
-      if (this.failFired || this.winFired) return;
-      this.checkWin();
+    this.scene.physics.add.overlap(this.ai, this.ball, () => {
+      this.handleAiHit();
     });
   }
 
-  checkWin() {
-    if (this.winFired || this.failFired) return;
-
-    if (this.volleyCount >= this.targetVolleys) {
-      this.triggerWin();
-    }
-  }
-
-  updateVolleyHud() {
-    if (!this.volleyHudText) return;
-    this.volleyHudText.setText(`VOLLEYS: ${this.volleyCount}/${this.targetVolleys}`);
-  }
-
-  serveBallDeterministically() {
-    if (!this.ball || this.failFired || this.winFired) return;
-
-    const mult = this.gameManager?.getDifficultyMultiplier?.() ?? 1;
-    const pattern = this.aiServePattern[this.serveIndex % this.aiServePattern.length];
+  startServe() {
+    const pattern = this.servePatterns[this.serveIndex % this.servePatterns.length];
     this.serveIndex += 1;
 
-    const vx = pattern.vx * (1 + (this.gameManager?.difficultyLevel ?? 0) * 0.05) * mult;
-    const vy = pattern.vy * (1 + (this.gameManager?.difficultyLevel ?? 0) * 0.04) * mult;
-
-    this.ball.setPosition(this.scene.scale.width / 2, this.netY + 40);
-    this.ball.body.setVelocity(vx, vy);
-
-    this.ball.body.setDrag(0);
-    this.ball.body.setMaxVelocity(9000, 9000);
+    this.ball.setPosition(320, 100);
+    this.ball.setVelocity(pattern.vx, pattern.vy);
   }
 
-  triggerWin() {
-    if (this.winFired || this.failFired) return;
-    this.winFired = true;
-
-    if (this.timerEvent) this.timerEvent.remove(false);
-
-    const scoreDelta = Math.round(100 * (this.gameManager?.getDifficultyMultiplier?.() ?? 1));
-    this.gameManager?.applyResult?.({ outcome: 'win', scoreDelta, sportKey: 'pickleball' });
-
-    this.scene.gameOver?.('win');
-  }
-
-  triggerFail(reason) {
-    if (this.failFired || this.winFired) return;
-    this.failFired = true;
-
-    if (this.timerEvent) this.timerEvent.remove(false);
-
-    const scoreDelta = 0;
-    this.gameManager?.applyResult?.({ outcome: 'fail', scoreDelta, sportKey: 'pickleball' });
-
-    this.scene.gameOver?.('fail', { reason });
-  }
-
-  update(time, delta) {
-    if (!this.gameActive || !this.ball) return;
-
-    const elapsed = Date.now() - this.roundStartAt;
-    const remaining = Math.max(0, this.timerMs - elapsed);
-    if (this.timeHudText) this.timeHudText.setText((remaining / 1000).toFixed(1));
-
-    if (this.failFired || this.winFired) return;
-
-    const y = this.ball.y;
-    if (y >= this.groundY) {
-      this.triggerFail('ground');
+  handlePlayerHit() {
+    if (this.ended || this.playerHitCooldown || !this.controller.isHitboxActive()) {
       return;
     }
 
-    const x = this.ball.x;
-    if (x <= this.courtLeft - 10 || x >= this.courtRight + 10) {
-      this.ball.body.setVelocity(-this.ball.body.velocity.x * 0.9, this.ball.body.velocity.y);
+    this.playerHitCooldown = true;
+    this.scene.time.delayedCall(150, () => {
+      this.playerHitCooldown = false;
+    });
+
+    this.volleyCount += 1;
+    this.updateVolleyUi();
+
+    if (this.volleyCount >= this.targetVolleys) {
+      this.finishRound('win', 100 + this.volleyCount * 25);
+      return;
     }
 
-    // Ball plays out naturally — auto re-serve removed so player has time to swing.
+    const playerVelocityX = this.controller.player && this.controller.player.body
+      ? this.controller.player.body.velocity.x
+      : 0;
+
+    const vx = Phaser.Math.Clamp(-playerVelocityX, -140, 140);
+    this.ball.setVelocity(vx, -220);
+  }
+
+  handleAiHit() {
+    if (this.ended || this.aiHitCooldown || this.ball.y > 200 || this.ball.body.velocity.y >= 0) {
+      return;
+    }
+
+    this.aiHitCooldown = true;
+    this.scene.time.delayedCall(150, () => {
+      this.aiHitCooldown = false;
+    });
+
+    const playerVelocityX = this.controller.player && this.controller.player.body
+      ? this.controller.player.body.velocity.x
+      : 0;
+
+    const vx = Phaser.Math.Clamp(-playerVelocityX, -140, 140);
+    this.ball.setVelocity(vx, 220);
+  }
+
+  updateVolleyUi() {
+    if (this.volleyText) {
+      this.volleyText.setText(`VOLLEYS: ${this.volleyCount}/${this.targetVolleys}`);
+    }
+  }
+
+  update() {
+    if (this.ended || !this.scene.gameActive || !this.controller.player || !this.ball) {
+      return;
+    }
+
+    this.keepAiPositioned();
+    this.handleCourtBounces();
+    this.checkKitchenFault();
+    this.checkFailBounds();
+  }
+
+  keepAiPositioned() {
+    const targetX = Phaser.Math.Clamp(this.ball.x, 120, 520);
+    this.ai.x = Phaser.Math.Linear(this.ai.x, targetX, 0.08);
+    this.ai.y = 100;
+    if (this.ai.body) {
+      this.ai.body.reset(this.ai.x, this.ai.y);
+    }
+  }
+
+  handleCourtBounces() {
+    if (this.ball.x <= this.courtBounds.left) {
+      this.ball.x = this.courtBounds.left;
+      this.ball.setVelocityX(Math.abs(this.ball.body.velocity.x) * 0.7 || 60);
+    } else if (this.ball.x >= this.courtBounds.right) {
+      this.ball.x = this.courtBounds.right;
+      this.ball.setVelocityX(-Math.abs(this.ball.body.velocity.x) * 0.7 || -60);
+    }
+
+    if (this.ball.y <= this.courtBounds.top) {
+      this.ball.y = this.courtBounds.top;
+      this.ball.setVelocityY(Math.abs(this.ball.body.velocity.y) * 0.7 || 80);
+    }
+  }
+
+  checkKitchenFault() {
+    if (!this.controller.isHitboxActive()) {
+      return;
+    }
+
+    const player = this.controller.player;
+    if (!player) {
+      return;
+    }
+
+    const inKitchen =
+      player.x >= this.courtBounds.left &&
+      player.x <= this.courtBounds.right &&
+      player.y >= 240 &&
+      player.y <= 260;
+
+    if (inKitchen) {
+      this.finishRound('fail', 0);
+    }
+  }
+
+  checkFailBounds() {
+    if (this.ball.y > this.courtBounds.playerMaxY) {
+      this.finishRound('fail', 0);
+    }
+  }
+
+  onTimeExpired() {
+    this.finishRound('fail', 0);
+  }
+
+  finishRound(outcome, scoreDelta) {
+    if (this.ended) {
+      return;
+    }
+
+    this.ended = true;
+    this.scene.gameOver({
+      outcome,
+      scoreDelta,
+      sportKey: 'pickleball'
+    });
   }
 
   destroy() {
-    this.gameActive = false;
-
-    if (this.timerEvent) this.timerEvent.remove(false);
-
-    if (this.playerWeaponGroup) this.playerWeaponGroup.clear(true, true);
-    if (this.ballGroup) this.ballGroup.clear(true, true);
-
-    if (this.ball) this.ball.destroy();
-
-    if (this.kitchenZone?.physicsZone) this.kitchenZone.physicsZone.destroy();
-
-    this.kitchenZone = null;
-    this.ball = null;
+    if (this.volleyText) {
+      this.volleyText.destroy();
+      this.volleyText = null;
+    }
+    if (this.ai) {
+      this.ai.destroy();
+      this.ai = null;
+    }
+    if (this.ball) {
+      this.ball.destroy();
+      this.ball = null;
+    }
+    if (this.lowerKitchenZone) {
+      this.lowerKitchenZone.destroy();
+      this.lowerKitchenZone = null;
+    }
   }
 }

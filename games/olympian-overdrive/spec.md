@@ -1,151 +1,371 @@
 # Olympian Overdrive — Spec
 
-**Date:** 2026-05-23
+**Date:** 2026-05-24
 **Status:** approved
 **Target mode:** pipeline
-**Spec version:** 1
-**Source:** Google Doc "Olympian Overdrive Retro Game Spec" — see `spec-raw.md` for full GDD
+**Spec version:** 3
+**Previous versions:** v1 — broken visuals (procedural rectangles), broken physics (no gravity), texture-key drift. v2 — added Texture Key Contract + Physics Tuning Targets; plays mechanically but lacks game feel.
+**Changes in v3:** Adds the four contracts from [ai-game-spec-methodology.md](../../../AI-OS/02_DOMAIN_OS/NEXUS_OS/knowledge/ai/process/ai-game-spec-methodology.md) — Game Feel, expanded Difficulty, expanded Visual Style, QA. Bakes in postmortems from v1+v2 bugs (see `games-workshop-agent-state.md`). All v2 content that worked (Texture Key Contract, Physics Tuning Targets, Locked Decisions) preserved.
+**Source:** Google Doc "Olympian Overdrive Retro Game Spec" — see `spec-raw.md`
 
 ---
 
 ## Concept
 
-A 2D action-platformer / micro-game collection. The protagonist is on the verge of winning the "Mega-Decathlon" when **Athleticus, God of Peak Performance,** shatters their Athletic Soul into 8-bit fragments. To reclaim it, the player conquers physics-based sports micro-games — each 5–15 seconds — that randomly cycle from a hub world. Difficulty scales each loop.
+A 2D action-platformer / micro-game collection. **Athleticus, God of Peak Performance**, shatters the protagonist's Athletic Soul into 8-bit fragments after they nearly win the Mega-Decathlon. To reclaim it, the player conquers physics-based sports micro-games (5–15s each) that randomly cycle from a hub world. Difficulty scales every loop.
 
-**Win condition (micro-game):** Sport-specific (e.g., 3 pickleball volleys, 1 soccer goal).
-**Lose condition (micro-game):** Sport-specific fail or timer expiry.
-**Long-term goal (full game):** Collect Soul Shards across infinite difficulty loops, spend on permanent upgrades.
-**Visual style:** Bright, neon 16-bit retro pixel with Greek mythology motifs (deferred to Milestone 2+ for full Greek treatment; Milestone 1 uses Kenney platformer base + generated sport props).
+**View:** All sports use **2D top-down view** (confirmed working in v2; do not revert to side-profile).
+**Win condition (micro-game):** Sport-specific.
+**Lose condition (micro-game):** Sport-specific OR 15s timer expiry.
+**Long-term goal (full game):** Collect Soul Shards across infinite difficulty loops, spend on permanent upgrades (M2+).
 
 ---
 
 ## Milestone 1 — Vertical Slice (Sprints 1-3 from source GDD)
 
-The proof-of-architecture build. Demonstrates: FSM scene flow, two playable sports sharing one engine, mash-up framework. Goal — boots, loops infinitely between two sports, infinite difficulty scale. ~10–15 source files.
+The proof-of-architecture build, now expanded with feel + QA. Demonstrates: FSM scene flow, two playable sports sharing one engine, mash-up framework, and a *feel layer* on top of working physics.
 
 ### M1 Step 1 — Core Engine & FSM (Sprint 1)
 
-- **Scenes (Phaser):** `BootScene → MenuScene → ActiveScene(sport) → ResultScene → ActiveScene(next sport)` looping. (Hub World deferred to M2; for M1, ResultScene auto-rolls the next sport via random pick.)
-- **GameManager** (singleton-style, on the Scene's `data` or a global module): tracks `score`, `lives` (start 3), `difficultyLevel` (start 0).
-- **Unified Input Manager:** abstracts keyboard to action verbs:
-  - `Axis_Horizontal` = Arrow Left / Right
-  - `Axis_Vertical` = Arrow Up / Down
-  - `Action_South` (Jump / Dodge) = `Z` key
-  - `Action_West` (Strike / Throw) = `X` key
-- **Global UI Layer:** Score (top-left), Difficulty Multiplier (top-right), Level Timer (top-center).
-- **Win-state output:** transitions to ResultScene with `{ outcome: 'win' | 'fail', score, sport }`.
+- **Scenes (Phaser):** `BootScene → MenuScene → ActiveScene(sport) → ResultScene → ActiveScene(next sport)` looping. Hub deferred to M2.
+- **GameManager** singleton on `game.registry`: tracks `score`, `lives` (start 3), `difficultyLevel` (start 0, +1 per win).
+- **InputManager** module abstracts keyboard to verb accessors:
+  - `Axis_Horizontal()` → -1/0/+1 from `ArrowLeft` / `ArrowRight`
+  - `Axis_Vertical()` → -1/0/+1 from `ArrowUp` / `ArrowDown`
+  - `isStrikeJustPressed()` → `X` key (true ONLY on first frame down — not while held)
+  - `isStartJustPressed()` → `SPACE`
+- **Global UI Layer (depth ≥ 1000):**
+  - Top-left: `SCORE: ###` (white, monospace 14px)
+  - Top-right: `MULT: x1.00` (cyan ≥ 1.0, green ≥ 1.5)
+  - Top-center: `TIME: 15.0` (white, countdown each frame)
+  - Below score: `LIVES: ❤️ ❤️ ❤️` (red — use unicode heart sprites or fallback to text "LIVES: 3")
+- **Dev keys (preserved from v2):** `1` jumps to Pickleball, `2` Soccer, `3` Mash-Up, `N` in-game fail-skip, `W` in-game win-skip, `0` return to menu.
 
-### M1 Step 2 — Two-Sport MVP (Sprint 2: Pickleball + Soccer)
+### M1 Step 2 — Two-Sport MVP: Pickleball + Soccer
 
-User chose Pickleball + Soccer over the doc's default (Baseball + Soccer) — both 2D side-profile, both use "strike + ball physics," maximum code reuse.
+**Resolution:** 640 × 480, top-down view.
 
-**Sport A — Pickleball:**
-- Viewpoint: 2D side-profile, single court.
-- Controller (`Controller_Pickleball`): Arrow Left/Right moves player along X-axis. Pressing `X` spawns a paddle hitbox collider for 200ms (~5 frames at 60fps).
-- Level Manager (`LevelManager_Pickleball`): tracks volley count, spawns a `Zone_Kitchen` rectangle (no-go zone near net). Ball is a high-bounce physics sprite. AI opponent serves the ball; deflects on contact.
-- **Win:** 3 successful paddle-to-ball collisions without entering kitchen zone while paddle is active.
-- **Fail:** Ball touches ground OR player overlaps kitchen zone with active paddle, OR timer (15s) expires.
+#### Sport A — Pickleball (top-down)
 
-**Sport B — Soccer:**
-- Viewpoint: 2D side-profile, single net.
-- Controller (`Controller_Soccer`): Arrow Left/Right movement. Pressing `X` initiates a dash-strike — player's strike collider extends in facing direction for 200ms.
-- Level Manager (`LevelManager_Soccer`): ball is a heavy rigid body on the ground. Strike collider contact applies force vector based on contact point + a brief power slider (UI bar that fills while X is held, max 500ms). A goalie sprite (`Hazard_Goalie`) moves up/down on Y-axis, blocking the goal.
-- **Win:** Ball enters goal trigger collider.
-- **Fail:** Ball blocked by goalie 3 times, OR timer (15s) expires.
+**Court geometry:** Court 80,60 → 560,420. Net at y=240. Kitchen zones 480×40 centered on net. Player baseline y=380, AI baseline y=100. Player spawn (320, 380). Court boundaries enforced by **velocity-zeroing at edge** (NOT setPosition clamping — see Postmortem v2).
 
-**Shared between sports:**
-- Both load identical UI canvas (score, timer, difficulty multiplier).
-- Both report win/fail to GameManager via the same callback signature.
-- Both use the same player sprite (chosen at menu).
+**Controller:** Arrow keys → velocity ±260 px/s horizontal, ±200 px/s vertical (constrained to lower half). X key → paddle hitbox at player position for **500ms**. Paddle visual: `racket_wood.png`.
 
-### M1 Step 3 — Mash-Up Architecture (Sprint 3)
+**Level Manager:**
+- Ball: `ball_tennis1.png`. Gravity 0 (top-down). Drag 20,20. Bounce 0.7,0.7. **`body.setAllowGravity(false)` on `.body`, not sprite** — house rule #14.
+- AI opponent: `characterRed (1).png`. Deterministic serve cycle: (0,220), (-60,220), (60,220). Returns straight up at y=-220 after player hit.
+- Win: 3 successful paddle-to-ball collisions.
+- Fail: ball y > 410 (touched lower court edge) OR player overlaps kitchen with active paddle OR 15s timer.
 
-Validates that Controllers (player verbs) and LevelManagers (rules/environment) are truly decoupled.
+#### Sport B — Soccer (top-down)
 
-- **Demo mash-up:** `Mashup_PickleSoccer` — load `LevelManager_Soccer` (goal + goalie + heavy soccer ball) but assign `Controller_Pickleball` (paddle hitbox). Resulting gameplay: player uses pickleball paddle to deflect soccer ball into goal past moving goalie.
-- **Architecture rule:** every Controller exports a function `attachToScene(scene)`; every LevelManager exports `init(scene, controller)`. A mash-up scene simply imports one of each and wires them.
-- **Collision matrix:** define collision groups (`PlayerWeapon`, `EnvironmentHazard`, `Ball`, `Goal`) so mash-ups don't need new collision setup.
+**Pitch geometry:** Pitch 40,40 → 600,440. Goal mouth x=200-440, y=40-80. Goalie line y=90, oscillates 220↔420 over ~1500ms. Player spawn (320, 400). Ball spawn (320, 360).
 
-**M1 win state (Pipeline build success):**
-- Boots in browser, plays Pickleball → Result → Soccer → Result → … infinitely.
-- Difficulty multiplier increments after each successful round.
-- Mash-up scene (`Mashup_PickleSoccer`) is reachable via debug key (e.g., press `M` at the menu).
-- No console errors.
+**Controller:** Arrow keys → velocity ±240 px/s both axes (constrained to pitch). X key → **proximity kick** (80px radius) AND strike hitbox (48×48 at player+8px in lastMoveDir).
 
----
+**Level Manager:**
+- Ball: `ball_soccer1.png`. **`body.setAllowGravity(false)`** (not on sprite). Drag 80,80. Bounce 0.5,0.5. MaxVelocity 500,500.
+- Goalie: `characterRed (5).png`. setImmovable(true). Oscillates 220↔420 along y=90.
+- Strike applies impulse vx = ball.x - player.x (min ±8) × 4, vy = -300 × 4 (clamped to -500 by maxVelocity).
+- Win: ball enters goal trigger (x ∈ [200,440], y < 80).
+- Fail: 15s timer (no longer auto-fail on N misses — v2 felt punishing).
 
-## Milestone 2 — Hub World + Roguelite Economy (Sprints 4-5)
+### M1 Step 3 — Mash-Up Architecture
 
-**Not generated in first Pipeline build.** Captured here so the spec stays whole.
+`Mashup_PickleSoccer` — load `LevelManager_Soccer` (pitch + goal + goalie + heavy soccer ball) with `Controller_Pickleball` (paddle hitbox). Architecture rule: Controllers export `init(player, collisionGroups)`, LevelManagers export `init(scene, controller)`. Mash-ups wire one of each.
 
-- "Locker Room at the End of Time" hub scene with 3 interactable nodes (Slot Machine, Workbench, Coach Hermes).
-- Slot Machine UI animation that randomly selects the next mini-game from the unlocked pool.
-- `PersistentDataManager`: persists Soul Shards and Lives across runs (localStorage).
-- Workbench upgrade tree (first upgrade: "Extra Sweatbands" = +1 starting life).
-- Wire the existing M1 sports into Hub-driven selection.
+**Reachable from MenuScene via `M` or `3` debug key.**
 
 ---
 
-## Milestone 3 — Content Expansion + Bosses + Juice (Sprints 6-8)
+## Texture Key Contract
 
-**Not generated in first Pipeline build.** Captured here so the spec stays whole.
+These are the canonical asset keys. BootScene loads exactly these; every consumer file references these verbatim. **No invention allowed downstream** — house rule #11.
 
-- Add remaining sports from GDD: Baseball, Basketball, Track & Field, Boxing, Bowling, Rock Climbing, Alpine Skiing, Paddleboarding, Trail Hiking, Weightlifting, Surfing, Pro Wrestling, Skateboarding, Ping Pong (subset based on schedule).
-- Boss battles ("Trinity Rule"): each boss combines 3 sports' mechanics in sequence (e.g., Boss 1 = Track + Baseball + Bowling).
-- Game feel polish: hit-stop on heavy impacts (50ms freeze), particle effects (confetti, sparks, dust), camera shake, audio triggers.
+| Key | Source path | Used by |
+|---|---|---|
+| `player-jack` | `Sports Pack/PNG/Blue/characterBlue (3).png` | ActiveScene |
+| `player-ai-pickle` | `Sports Pack/PNG/Red/characterRed (1).png` | LevelManager_Pickleball |
+| `player-goalie` | `Sports Pack/PNG/Red/characterRed (5).png` | LevelManager_Soccer |
+| `ball-pickle` | `Sports Pack/PNG/Equipment/ball_tennis1.png` | LevelManager_Pickleball |
+| `ball-soccer` | `Sports Pack/PNG/Equipment/ball_soccer1.png` | LevelManager_Soccer |
+| `paddle` | `Sports Pack/PNG/Equipment/racket_wood.png` | Controller_Pickleball |
+
+**Asset copy step (pre-build):** All 6 files already at `games/olympian-overdrive/public/assets/sports/` from v2. No re-copy needed.
+
+---
+
+## Physics Tuning Targets
+
+| Parameter | Target | Source/Why |
+|---|---|---|
+| Pickleball: player horizontal speed | 260 px/s | v2-validated; ~2s court traversal |
+| Pickleball: player vertical speed | 200 px/s | v2-validated; slower for tracking |
+| Pickleball: paddle active window | 500ms | v2-validated; kid reaction time |
+| Pickleball: ball gravity | 0 (top-down) | v2-validated |
+| Pickleball: ball drag | 20, 20 | v2-validated |
+| Pickleball: ball bounce | 0.7, 0.7 | v2-validated |
+| Pickleball: AI serve velocity | 220 px/s downward | v2-validated; ~1.6s crossing |
+| Soccer: player speed both axes | 240 px/s | v2-validated |
+| Soccer: strike impulse multiplier | 4 | v2-validated |
+| Soccer: ball drag | 80, 80 | v2-validated |
+| Soccer: ball bounce | 0.5, 0.5 | v2-validated |
+| Soccer: ball maxVelocity | 500, 500 | v2-validated |
+| Soccer: goalie oscillation period | 1500ms | v2-validated |
+| Soccer: strike hitbox size | 48×48 at player+8px | v2-validated (was 28×28 at +18px, missed) |
+| Round timer | 15s | GDD baseline |
+
+---
+
+## Game Feel Contract  *(NEW IN v3)*
+
+The largest delta from v2. v2 has correct physics; v3 makes contact, scoring, and failure *feel like something*.
+
+### Player fantasy
+Player should feel like a snappy, capable athlete — every successful action has a brief, audible-then-visible *snap* of confirmation; every failure is clearly the universe's response, not an arbitrary punishment.
+
+### Responsiveness targets
+- Input-to-action latency: under 1 frame (16ms) — no buffer delays. Arrow key press = next-frame velocity update.
+- Strike (X key): registers on JustDown (first frame only), NOT while held. Hold-repeat is anti-feel.
+- Movement: zero acceleration ramp. Press → instant target velocity. Release → instant zero. Snappy, not realistic.
+
+### Impact feedback rules
+
+**Paddle hits ball (Pickleball):**
+- Hit-stop: 50ms freeze (set `physics.world.isPaused = true` for 50ms, then resume)
+- Camera shake: 4px amplitude, 120ms decay
+- Particle burst at contact point: 6-8 small white circles (alpha 1.0 → 0 over 300ms, scale 1 → 0.3)
+- Volley count text pulses (scale 1 → 1.3 → 1 over 200ms)
+- No sound in M1 (deferred per Locked Decisions)
+
+**Ball enters goal (Soccer):**
+- Hit-stop: 80ms freeze (bigger event)
+- Camera shake: 8px amplitude, 200ms decay
+- Particle burst at goal mouth: 16-20 particles (alpha 1.0 → 0 over 600ms, scale 1 → 0.4)
+- Goal-zone background flashes from green to white-flash-to-green over 400ms
+- "GOAL!" text appears at screen center, scale 0 → 1.4 → 1 over 300ms, fades out by 1500ms
+
+**Player fails (timer expires OR fail condition):**
+- Hit-stop: 60ms freeze
+- Screen darkens to 80% black over 200ms
+- "FAIL!" text appears red, scale 0 → 1.2 → 1 over 250ms
+- Camera shake: 5px amplitude, 150ms decay
+- Background tints red over 400ms then transitions to ResultScene
+
+**Round transition (Result → next sport):**
+- ResultScene shows outcome overlay 1500ms (per Locked Decisions)
+- During the last 300ms, fade out to black
+- ActiveScene fades in from black over 200ms
+
+### Camera rules
+- Top-down view has no camera follow (player constrained to small playfield, no scrolling needed)
+- Shake triggers are the only camera dynamics
+- Never shake on regular movement, only on impact/scoring/failure events
+
+### State-specific feel notes
+- On paddle activation (X press) but no ball contact: brief paddle sprite scale pulse (1 → 1.15 → 1 over 100ms) — confirms input was received
+- On AI scoring (Pickleball, ball reached lower edge): same fail flow as timer expiry
+- On player out-of-bounds movement attempt: no visual response (velocity-zeroed silently)
+
+### Non-negotiables
+1. Hit-stop on paddle/goal contact — without this, the contract is unfulfilled
+2. Particles on score/contact events
+3. Camera shake on impact/scoring/failure (different amplitudes per event class)
+4. Volley count + score text pulses on update (small reactive UI)
+5. No input lag — JustDown semantics on X, instant velocity on arrows
+
+---
+
+## Difficulty Contract  *(EXPANDED IN v3)*
+
+### Target player
+Kids ages 12-14 (Jack 12, Nola 14, plus their friends). First-time players should understand controls in under 10 seconds (movement obvious, X = strike from menu instructions). First success should occur within 1-2 attempts.
+
+### Core skills tested
+1. **Reaction time** — paddle swing timing in pickleball, kick timing in soccer
+2. **Spatial positioning** — moving to intercept ball, dodging goalie
+3. **Persistence** — 3-volley pickleball requires holding focus for 8-12s
+
+### Onboarding expectations
+- First Pickleball round (no prior context): success rate 40-60% on first attempt
+- First Soccer round: success rate 50-70% on first attempt (simpler win condition)
+- After 3 rounds of mixed sports: player should understand all four mechanics (move, strike pickle, move, kick soccer)
+
+### Failure cadence targets
+- Average retries before first win per sport: 1-2
+- Time lost on failure before next round: 1.5s (ResultScene overlay)
+- Lives start at 3; first session expected to last 4-8 rounds before game-over
+
+### Forgiveness systems
+- 80px proximity kick in Soccer — generous (was edge-tangent in v2, frustrating)
+- 500ms paddle active window — kid-reactable
+- No tightening hitboxes as difficulty increases (v1/v2 had this in spec; remove)
+
+### Escalation rules
+- Difficulty multiplier: `multiplier = 1 + (difficultyLevel × 0.25)` — affects SCORE only, not gameplay parameters
+- Add **variety, not tightness**, as difficulty grows: future mash-ups, future sports
+- **Never** make hitboxes smaller or AI faster on the same sport in M1 — kids learn the mechanic at one stable difficulty
+- (M2+) Boss rounds introduce harder mechanics; base sports stay reachable
+
+### Anti-frustration constraints
+- Never: instant-fail on a single bad input (current Pickleball "ball touches ground = fail" is borderline — consider 2-strike before fail in M2)
+- Never: 2 new mechanics in same encounter
+- Recovery after failure: fast (1.5s overlay, no menus, auto-next)
+
+### Success metrics
+- By end of session (~6-8 rounds), player demonstrates: confident movement, intentional strike timing, awareness of win condition
+- Difficulty should feel *energetic, never punishing* — measured by: do they want to play another round after a fail?
+
+---
+
+## Visual Style Contract  *(EXPANDED IN v3)*
+
+### Style statement
+Bright, flat-shaded top-down sports pixel art using Kenney Sports Pack as M1 baseline. Greek mythology / neon retro identity arrives in v4 via `generate-sprite.js` — M1 ships with Kenney coherence. No texture filtering (pixel-perfect).
+
+### Reference anchors
+- Primary: Kenney Sports Pack flat-shaded characters + tile-based court (see `Sample1.png`)
+- Avoid: side-profile platformer art, 3D-rendered sprites, photo-realistic textures
+
+### Palette (locked for v3)
+- Court / pitch: green (`#2f9e44` primary, `#1f7a33` accent for goal mouth, `#103a2b` background)
+- Player (Jack): blue (`characterBlue (3).png` — preserve original colors)
+- AI opponent + Goalie: red (`characterRed` series)
+- Hazard color rule: kitchen zone in Pickleball uses `#ff2e63` with 18% fill, 55% stroke — clearly DANGER
+- UI accent: cyan (`#2ef2ff`) for primary HUD, green (`#7bff00`) for "go" states, red (`#ff2d55`) for fail
+- Background saturation rule: courts saturated, HUD overlays low-saturation
+
+### Shape language
+- Characters: rounded oval silhouettes (top-down heads with body extending below — Kenney convention)
+- Hazards: rectangular zones with bold colored borders (kitchen zone pattern)
+- UI elements: rectangles with 2-4px strokes, monospace text
+
+### Texture / material rules
+- All sprites pixel-perfect, no anti-aliasing
+- Background tiles can be solid color fills with line overlays (court lines, center circle)
+- No textures requiring shaders or blend modes — Phaser's default rendering only
+
+### Readability priorities (highest → lowest)
+1. Ball (primary game object — must be tracked visually at all times)
+2. Player (control feedback)
+3. AI / hazard (threat awareness)
+4. UI text (score, timer, multiplier)
+5. Court markings (boundary awareness)
+6. Background (last)
+
+If any element competes with ball visibility, reduce its saturation or scale.
+
+### Asset key conventions
+Locked in Texture Key Contract above. Naming pattern: `<role>-<descriptor>` (e.g., `player-jack`, `ball-pickle`, `paddle`). No camelCase, no underscores.
+
+---
+
+## QA Contract  *(NEW IN v3)*
+
+The enforcement layer. Without this, the other contracts are aspirations.
+
+### Mechanical checks (must pass — would block ship)
+These are the future `review-game.js` rules + manual until tool is built.
+
+| ID | Rule | Caught at |
+|---|---|---|
+| Q-M01 | All texture keys in consumer files exist in BootScene preload | Static scan |
+| Q-M02 | Every `physics.add.group()` includes `classType: Phaser.Physics.Arcade.Sprite` | Static scan |
+| Q-M03 | `setAllowGravity` only called on `.body`, never on sprite directly | Static scan |
+| Q-M04 | `setColor` used for Text, never `setFill` | Static scan |
+| Q-M05 | Sport keys consistent across MenuScene → ActiveScene → GameManager | Static scan |
+| Q-M06 | Every controller method called by a LevelManager exists on the controller | Static scan |
+| Q-M07 | `update()` guards with `if (!this.gameActive || !this.player) return;` | Static scan |
+| Q-M08 | Vite build completes with no errors | `npx vite build` |
+
+### Runtime smoke checks (must pass — would block ship)
+Currently manual; future `playtest-game.js` automates.
+
+| ID | Check | How |
+|---|---|---|
+| Q-R01 | Game boots without console errors | Open localhost:5174, check DevTools |
+| Q-R02 | MenuScene → Pickleball transition works (press 1) | Manual |
+| Q-R03 | Pickleball plays end-to-end (3 volleys to win) | Manual |
+| Q-R04 | Soccer plays end-to-end (1 goal to win) | Manual |
+| Q-R05 | Pickle-Soccer mash-up reachable (press M or 3) | Manual |
+| Q-R06 | Random sport rotation after win/fail | Manual; play 3 rounds, verify variety |
+
+### Subjective / feel checks (warning, not block)
+Game Builder Agent's Postmortem routine flags these for Charlie.
+
+| ID | Check | Method |
+|---|---|---|
+| Q-S01 | Paddle contact feels responsive (hit-stop + particles fire) | Kid playtest |
+| Q-S02 | Goal celebration feels rewarding | Kid playtest |
+| Q-S03 | Failure feels like "the universe responded" not "the game broke" | Kid playtest |
+| Q-S04 | Difficulty feels energetic, not punishing | Did kid want another round? |
+
+### Acceptance gate
+Ship-ready when: all Q-M01 to Q-M08 pass, all Q-R01 to Q-R06 pass, at least 3 of 4 Q-S checks pass.
 
 ---
 
 ## Tech Stack
-
-- **Framework:** Phaser 3 (3.80+) + Vite (5.x) — same as starter-space-shooter.
-- **Language:** Vanilla JS, ES modules.
-- **Physics:** Arcade Physics (no Matter — keeps consistency with starter game, sufficient for V1).
-- **Persistence:** `localStorage` for score/lives/shards (M2+).
-- **Deploy:** Azure Static Web Apps, free tier, auto-deploy from GitHub `main`.
-- **Resolution:** 640×480 (4:3, gives retro feel and works on TV cast).
+- Phaser 3.80+, Vite 5.x, vanilla JS ES modules
+- Arcade Physics, world gravity y=0
+- localStorage for score/lives/shards (M2+)
+- 640 × 480 resolution
+- Azure SWA free tier, GitHub auto-deploy
 
 ---
 
-## Asset Map
+## Locked Decisions (preserved across versions)
 
-Greek-myth-themed sports assets aren't in Kenney. **Strategy:** Use Kenney's Pixel Platformer base for character and environment, generate sport-specific props with `generate-sprite.js`. Athleticus / Coach Hermes / hub world art deferred to M2.
-
-| Game element | Source | Asset file (planned) | Notes |
-|---|---|---|---|
-| Player character (Jack — V1 hardcoded) | Kenney Pixel Platformer | `kenney-all-in-1-3.5.0/2D assets/Pixel Platformer/Characters/character_0024.png` | Sprite sheet; needs idle + run + jump frames |
-| Pickleball paddle | gpt-image-2 generated | `public/assets/sports/paddle.png` | "32×32 neon retro pixel pickleball paddle, side view" |
-| Pickleball ball | gpt-image-2 generated | `public/assets/sports/ball-pickle.png` | "16×16 yellow pickleball with holes, retro pixel" |
-| Soccer ball | Kenney Sports Pack (check available) | `kenney-all-in-1-3.5.0/2D assets/Sports/PNG/Equipment/ball_soccer.png` | Fallback: generate if not in bundle |
-| Soccer goal / net | gpt-image-2 generated | `public/assets/sports/goal.png` | "retro pixel soccer goal with netting, 96×64" |
-| Goalie sprite | Kenney Pixel Platformer | reuse character_0011 | Tinted/recolored variant |
-| Court background | Kenney Pixel Platformer tileset | `kenney-all-in-1-3.5.0/2D assets/Pixel Platformer/Tiles/...` | Simple gradient or solid color works too |
-| UI font | Phaser built-in monospace | n/a | Matches starter game's style |
-
-**Asset generation step (before Pipeline build):** Run `generate-sprite.js` once per generated sprite. ~5 calls, ~$0.05 total. Or defer and Pipeline scaffolds with placeholders, kids generate during play.
+1. Player: hardcode Jack for V1. Stella + selector in M2.
+2. Pickleball AI: deterministic serve cycle.
+3. Win/fail screen: 1.5s full-screen overlay, auto-roll next sport.
+4. Mash-up reachability: `M` or `3` key from MenuScene.
+5. Audio: deferred from M1. Kid session in v4.
+6. View: top-down for ALL sports (v2-validated).
+7. Visual baseline: Kenney Sports Pack for M1. Greek myth gpt-image-2 assets in v4.
+8. Sport rotation: random (not sequential).
+9. Debug skip key: `N` (fail+skip), `W` (win+skip), `0` (return to menu).
+10. Texture key contract — no AI invention allowed.
 
 ---
 
-## Locked Decisions (resolved 2026-05-23)
+## House Rules for the Pipeline Build (16 rules — see `feedback_phaser_house_rules.md` memory)
 
-1. **Player character:** Hardcode **Jack "Turbo" Savage** for V1. Standard hurtbox, faster acceleration, heavy gravity on falls. Stella + selector arrive in M2 with the Hub World.
-2. **Pickleball AI opponent:** Deterministic serve pattern. Same angle/speed every serve in V1 — predictable for testing and learning. Stateful AI in M2.
-3. **Win/fail screen:** 1.5-second SUCCESS or FAIL overlay (full-screen color flash + text), then auto-roll next sport. Matches GDD State_Result timing.
-4. **Mash-up reachability:** Debug key `M` from MenuScene only. Surface as a "Bonus Round" trigger in M2.
-5. **Audio:** Deferred entirely from M1. Pipeline generates a silent game. Audio added in a later session with the kids (high-engagement moment).
+These get injected into `build-game.js` system prompt verbatim. New since v2: rules #14-16.
+
+1. `physics.add.group()` MUST include `classType: Phaser.Physics.Arcade.Sprite` + explicit `allowGravity`.
+2. Use `group.create(x, y, key)` not `physics.add.sprite() + group.add()`.
+3. Text uses `setColor`, NEVER `setFill`.
+4. Tween-controlled physics sprites need `setImmovable(true)` + `body.setAllowGravity(false)`.
+5. Damage handlers MUST have invulnerability flag/window.
+6. Every scene file: `import Phaser from 'phaser';` at top.
+7. `update()` MUST guard at top: `if (!this.gameActive || !this.player) return;`.
+8. `vite.config.js`: `export default { base: './' };`
+9. Every game folder needs `staticwebapp.config.json` SPA fallback.
+10. Gravity logic: world y=0, per-body via `setGravityY()` requires `setAllowGravity(true)`.
+11. Texture keys come from spec's Texture Key Contract. NO invention.
+12. Player spawn coordinates from spec geometry, not (0,0).
+13. Auto re-serve / respawn timers ≥ 1500ms.
+14. **`setAllowGravity` is a BODY method**, not a SPRITE method. Always `sprite.body.setAllowGravity(false)`.
+15. Scene transitions can leave menu locked on crash — defensive: `events.on('wake'|'resume', () => starting=false)` AND don't gate dev shortcuts behind starting flag.
+16. **Sport/scene routing keys must be string-matched consistently across files** — use named constants in a shared file. v2 had `'mashup-picklesoccer'` vs `'mashup-pickle-soccer'` silent fail.
 
 ---
 
-## House Rules for the Pipeline Build (Learned from starter-space-shooter)
+## Build & Verification
 
-These MUST be enforced by `build-game.js` system prompt for every generated file:
+After Pipeline build, run agent's Post-Build Review routine (Q-M01 to Q-M08 manually until `review-game.js` exists).
 
-- All `physics.add.group()` calls must specify `classType: Phaser.Physics.Arcade.Sprite` and appropriate `allowGravity`. Default group config produces non-physics sprites that silently break `setVelocity`.
-- Use `group.create(x, y, key)` to spawn group children, never `physics.add.sprite() + group.add()`.
-- Phaser Text styling: `setColor('#hex')`, never `setFill` (does not exist in Phaser 3 — silent crash).
-- Sprites driven by tweens that also need physics bodies: `setImmovable(true)` + `body.setAllowGravity(false)`.
-- Any "take damage" handler MUST have an invulnerability flag with a window (e.g., 1500ms) — without it, lives drain in single frames from multi-collision events.
-- Every scene file imports Phaser at top: `import Phaser from 'phaser';`
-- `update(time, delta)` must guard with `if (!this.gameActive || !this.player) return;` at the very top.
-- `vite.config.js` must export `{ base: './' }` for Azure SWA's relative-path serving.
-- Each game folder must contain `staticwebapp.config.json` with SPA navigation fallback.
+Run Q-R01 to Q-R06 in browser at localhost:5174.
+
+Capture Q-S01 to Q-S04 in kid playtest session — record reactions, append to `games-workshop-agent-state.md` Postmortem section.
+
+---
+
+## Out of scope for v3
+- Hub World, slot machine, PersistentDataManager → M2
+- Boss battles, Trinity Rule → M3
+- Greek-themed visuals via `generate-sprite.js` → v4
+- Audio → kid session
+- Touch controls → mobile shipping
+- `review-game.js` + `playtest-game.js` automation → separate tool builds (Sprint 1 #7 design)

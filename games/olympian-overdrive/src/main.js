@@ -9,16 +9,22 @@ const config = {
   width: 640,
   height: 480,
   parent: 'game',
-  backgroundColor: '#0b1020',
+  backgroundColor: '#000000',
   pixelArt: true,
   physics: {
     default: 'arcade',
     arcade: {
       gravity: { y: 0 },
-      debug: false,
-    },
+      debug: false
+    }
   },
   scene: [BootScene, MenuScene, ActiveScene, ResultScene],
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 640,
+    height: 480
+  }
 };
 
 new Phaser.Game(config);

@@ -3,29 +3,27 @@
   "files": [
     {
       "path": "package.json",
-      "purpose": "Defines Vite and Phaser dependencies plus scripts to run and build the Milestone 1 vertical slice.",
+      "purpose": "Project manifest with Phaser and Vite dependencies plus dev/build scripts.",
       "depends_on": []
     },
     {
       "path": "vite.config.js",
-      "purpose": "Configures Vite with the required relative base path for Azure Static Web Apps deployment.",
+      "purpose": "Vite configuration using relative base path for Azure Static Web Apps.",
       "depends_on": []
     },
     {
       "path": "index.html",
-      "purpose": "Hosts the Phaser canvas and loads the Vite entry module.",
-      "depends_on": [
-        "src/main.js"
-      ]
+      "purpose": "Single-page app HTML entry mounting the Phaser game.",
+      "depends_on": []
     },
     {
       "path": "staticwebapp.config.json",
-      "purpose": "Provides SPA navigation fallback to index.html for Azure Static Web Apps.",
+      "purpose": "Azure Static Web Apps routing config with SPA navigation fallback to index.html.",
       "depends_on": []
     },
     {
       "path": "src/main.js",
-      "purpose": "Creates the Phaser game instance, registers all scenes, and boots the FSM loop.",
+      "purpose": "Creates the Phaser game config, registers scenes, enables Arcade Physics with zero gravity, and boots the app.",
       "depends_on": [
         "src/scenes/BootScene.js",
         "src/scenes/MenuScene.js",
@@ -34,33 +32,32 @@
       ]
     },
     {
-      "path": "src/core/InputManager.js",
-      "purpose": "Centralizes Arrow keys plus Z/X input mapping into verb-based accessors shared by all scenes and controllers.",
+      "path": "src/core/GameManager.js",
+      "purpose": "Singleton-style round/state manager for score, lives, difficulty, sport rotation, and result payload handling.",
       "depends_on": []
     },
     {
-      "path": "src/core/GameManager.js",
-      "purpose": "Tracks score, lives, difficulty level, sport rotation, and result payloads across scene transitions.",
+      "path": "src/core/InputManager.js",
+      "purpose": "Centralized keyboard input abstraction for arrow axes plus Z jump and X strike verbs.",
       "depends_on": []
     },
     {
       "path": "src/scenes/BootScene.js",
-      "purpose": "Preloads placeholder and sport assets, initializes shared managers, and transitions to the menu.",
+      "purpose": "Preloads the six locked texture keys from public assets and initializes shared game state.",
       "depends_on": [
         "src/core/GameManager.js"
       ]
     },
     {
       "path": "src/scenes/MenuScene.js",
-      "purpose": "Shows the title and controls, starts the normal sport loop, and exposes debug key M for the mash-up round.",
+      "purpose": "Title/menu scene that starts the standard sport loop or launches the mash-up via debug key M.",
       "depends_on": [
-        "src/core/GameManager.js",
-        "src/core/InputManager.js"
+        "src/core/GameManager.js"
       ]
     },
     {
       "path": "src/scenes/ActiveScene.js",
-      "purpose": "Runs a selected sport or mash-up by wiring one controller to one level manager and rendering the shared HUD.",
+      "purpose": "Generic gameplay scene that instantiates the selected controller and level manager, runs the 15-second round timer, global HUD, and win/fail transitions.",
       "depends_on": [
         "src/core/GameManager.js",
         "src/core/InputManager.js",
@@ -73,42 +70,38 @@
     },
     {
       "path": "src/scenes/ResultScene.js",
-      "purpose": "Displays a brief success or fail overlay, updates progression through GameManager, and auto-rolls the next round.",
+      "purpose": "Short auto-advance result overlay scene showing win/fail feedback and rolling into the next random sport.",
       "depends_on": [
         "src/core/GameManager.js"
       ]
     },
     {
       "path": "src/sports/Pickleball/Controller_Pickleball.js",
-      "purpose": "Implements side-to-side movement and a short-lived paddle strike hitbox using shared input verbs.",
+      "purpose": "Top-down pickleball player controller handling constrained movement and 500ms paddle hitbox spawning.",
       "depends_on": [
         "src/core/InputManager.js"
       ]
     },
     {
       "path": "src/sports/Pickleball/LevelManager_Pickleball.js",
-      "purpose": "Builds the pickleball court, kitchen zone, ball rules, deterministic serve, volley counting, and win/fail conditions.",
-      "depends_on": [
-        "src/core/GameManager.js"
-      ]
+      "purpose": "Pickleball court, AI serve/return logic, volley counting, kitchen fail rule, and ball physics tuning.",
+      "depends_on": []
     },
     {
       "path": "src/sports/Soccer/Controller_Soccer.js",
-      "purpose": "Implements side-to-side movement, facing-aware dash strike behavior, and charge timing for soccer kicks.",
+      "purpose": "Top-down soccer player controller handling free movement plus 200ms dash-strike hitbox behavior.",
       "depends_on": [
         "src/core/InputManager.js"
       ]
     },
     {
       "path": "src/sports/Soccer/LevelManager_Soccer.js",
-      "purpose": "Builds the soccer field, goal trigger, moving goalie hazard, heavy ball interactions, and soccer win/fail rules.",
-      "depends_on": [
-        "src/core/GameManager.js"
-      ]
+      "purpose": "Soccer pitch, goal trigger, goalie patrol, heavy ball physics, and win/fail detection.",
+      "depends_on": []
     },
     {
       "path": "src/sports/Mashups/Mashup_PickleSoccer.js",
-      "purpose": "Defines the debug mash-up configuration that pairs the pickleball controller with the soccer level manager.",
+      "purpose": "Mash-up sport definition wiring the pickleball controller to the soccer level manager for debug launch and rotation support.",
       "depends_on": [
         "src/sports/Pickleball/Controller_Pickleball.js",
         "src/sports/Soccer/LevelManager_Soccer.js"

@@ -1,140 +1,155 @@
 import Phaser from 'phaser';
-import GameManager from '../core/GameManager.js';
-import InputManager from '../core/InputManager.js';
+import { getGameManager } from '../core/GameManager.js';
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
     super('MenuScene');
   }
 
-  init() {
-    this.gameActive = true;
-    this._rollTimer = null;
-  }
-
   create() {
-    this.gameActive = true;
+    this.cameras.main.setBackgroundColor('#10182a');
 
-    if (!this.registry.has('gameManager')) {
-      this.registry.set('gameManager', new GameManager());
-    }
-    this.gameManager = this.registry.get('gameManager');
-
-    this.inputManager = new InputManager(this);
+    const gameManager = getGameManager();
+    this.game.registry.set('gameManager', gameManager);
 
     const { width, height } = this.scale;
 
-    this.cameras.main.setBackgroundColor('#0b1020');
+    this.add.rectangle(width * 0.5, height * 0.5, width, height, 0x10182a);
+    this.add.rectangle(width * 0.5, 110, 520, 90, 0x1d2d50, 0.95).setStrokeStyle(4, 0x4cc9f0);
+    this.add.rectangle(width * 0.5, 275, 540, 180, 0x16213e, 0.95).setStrokeStyle(3, 0xf4d35e);
 
-    const title = this.add
-      .text(width / 2, height * 0.22, 'OLYMPIAN OVERDRIVE', {
+    const title = this.add.text(width * 0.5, 90, 'OLYMPIAN OVERDRIVE', {
+      fontFamily: 'monospace',
+      fontSize: '28px',
+      fontStyle: 'bold',
+      align: 'center'
+    }).setOrigin(0.5);
+    title.setColor('#ffffff');
+
+    const subtitle = this.add.text(width * 0.5, 125, 'Top-Down Sports Micro-Game Slice', {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      align: 'center'
+    }).setOrigin(0.5);
+    subtitle.setColor('#4cc9f0');
+
+    const instructions = this.add.text(
+      width * 0.5,
+      240,
+      [
+        'SPACE: START RUN',
+        'M: DEBUG MASH-UP',
+        '',
+        'MOVE: ARROW KEYS',
+        'Z: JUMP / RESERVED',
+        'X: STRIKE / SWING'
+      ].join('\n'),
+      {
         fontFamily: 'monospace',
-        fontSize: '28px',
-        color: '#7df9ff',
+        fontSize: '18px',
         align: 'center',
-      })
-      .setOrigin(0.5);
+        lineSpacing: 8
+      }
+    ).setOrigin(0.5);
+    instructions.setColor('#ffffff');
 
-    const subtitle = this.add
-      .text(width / 2, height * 0.32, 'Mega-Decathlon: reclaim your Athletic Soul', {
+    const footer = this.add.text(
+      width * 0.5,
+      410,
+      '15s rounds • random sport rotation • 3 lives',
+      {
         fontFamily: 'monospace',
         fontSize: '14px',
-        color: '#d7d7ff',
-        align: 'center',
-      })
-      .setOrigin(0.5);
+        align: 'center'
+      }
+    ).setOrigin(0.5);
+    footer.setColor('#f4d35e');
 
-    const controls = this.add
-      .text(
-        width / 2,
-        height * 0.48,
-        '←/→ Move\nZ Jump/Dodge\nX Strike/Throw\n\nPress ENTER to start\nPress M for Bonus Mash-up',
-        {
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          color: '#ffffff',
-          align: 'center',
-        }
-      )
-      .setOrigin(0.5);
+    this.promptText = this.add.text(width * 0.5, 405, 'PRESS SPACE TO BEGIN', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      fontStyle: 'bold',
+      align: 'center'
+    }).setOrigin(0.5);
+    this.promptText.setColor('#7cff6b');
 
-    const hint = this.add
-      .text(width / 2, height * 0.78, 'Difficulty scales each round. Good luck, Olympian!', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#a7ff83',
-        align: 'center',
-      })
-      .setOrigin(0.5);
+    // Dev mode panel — jump directly to a sport or scene
+    this.add.text(width * 0.5, 442, '— DEV MODE —', {
+      fontFamily: 'monospace', fontSize: '11px', align: 'center'
+    }).setOrigin(0.5).setColor('#888888');
 
-    this._startKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.add.text(width * 0.5, 460,
+      '1: Pickleball   2: Soccer   3: Mash-Up   N: Skip (in-game)',
+      { fontFamily: 'monospace', fontSize: '11px', align: 'center' }
+    ).setOrigin(0.5).setColor('#aaaaaa');
 
-    this._flash = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0).setDepth(10);
+    this.tweens.add({
+      targets: this.promptText,
+      alpha: 0.25,
+      duration: 550,
+      yoyo: true,
+      repeat: -1
+    });
 
-    this._start = () => {
-      if (!this.gameActive) return;
-      this.gameManager.reset();
-
-      this.scene.start('ActiveScene', {
-        sportKey: this.gameManager.getNextSportKey(),
-        mashup: false,
-      });
+    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.mKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.devKeys = {
+      one: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+      two: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+      three: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE)
     };
+    this.starting = false;
 
-    this._startMashup = () => {
-      if (!this.gameActive) return;
-      this.gameManager.reset();
-
-      this.scene.start('ActiveScene', {
-        sportKey: 'mashup_pickle_soccer',
-        mashup: true,
-      });
-    };
-
-    this._startKeyDownHandler = () => this._start();
-    this._mKeyDownHandler = () => this._startMashup();
-
-    this.input.keyboard.on('keydown-ENTER', this._startKeyDownHandler);
-    this.input.keyboard.on('keydown-M', this._mKeyDownHandler);
-
-    this._ui = { title, subtitle, controls, hint };
-  }
-
-  shutdown() {
-    this.gameActive = false;
-
-    if (this._rollTimer) {
-      this._rollTimer.remove(false);
-      this._rollTimer = null;
-    }
-
-    if (this.inputManager) {
-      this.inputManager = null;
-    }
-
-    if (this.input && this._startKeyDownHandler) {
-      this.input.keyboard.off('keydown-ENTER', this._startKeyDownHandler);
-    }
-    if (this.input && this._mKeyDownHandler) {
-      this.input.keyboard.off('keydown-M', this._mKeyDownHandler);
-    }
+    // Defensive: if we ever wake up from a crashed scene, unlock inputs.
+    this.events.on('wake', () => { this.starting = false; });
+    this.events.on('resume', () => { this.starting = false; });
   }
 
   update() {
-    if (!this.gameActive) return;
-
-    if (this.inputManager && this.inputManager.isDebugMashupPressed()) {
-      this._startMashup();
+    // Dev keys ALWAYS available — never gated by starting flag.
+    // If a previous transition crashed, these are the unlock.
+    if (Phaser.Input.Keyboard.JustDown(this.devKeys.one)) {
+      this.starting = false;
+      this.jumpToSport('pickleball');
+      return;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.devKeys.two)) {
+      this.starting = false;
+      this.jumpToSport('soccer');
+      return;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.devKeys.three) || Phaser.Input.Keyboard.JustDown(this.mKey)) {
+      this.starting = false;
+      this.startMashupRun();
       return;
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this._startKey)) {
-      this._start();
-      return;
-    }
+    if (this.starting) return;
 
-    if (this._ui && this._ui.title) {
-      this._ui.title.setColor(this._ui.title.fillColor === '#7df9ff' ? '#b7ff6a' : '#7df9ff');
+    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+      this.startStandardRun();
     }
+  }
+
+  jumpToSport(sportKey) {
+    this.starting = true;
+    const gameManager = getGameManager();
+    gameManager.startNewRun(sportKey);
+    this.scene.start('ActiveScene', { sportKey });
+  }
+
+  startStandardRun() {
+    this.starting = true;
+    const gameManager = getGameManager();
+    const sportKey = gameManager.startNewRun();
+    this.scene.start('ActiveScene', { sportKey });
+  }
+
+  startMashupRun() {
+    this.starting = true;
+    const gameManager = getGameManager();
+    gameManager.startNewRun('mashup-pickle-soccer');
+    gameManager.setCurrentSportKey('mashup-pickle-soccer');
+    this.scene.start('ActiveScene', { sportKey: 'mashup-pickle-soccer' });
   }
 }

@@ -1,73 +1,133 @@
-export default class GameManager {
+const SPORT_KEYS = ['pickleball', 'soccer'];
+
+class GameManager {
   constructor() {
-    this.reset();
+    this.resetRun();
   }
 
-  reset() {
+  resetRun() {
     this.score = 0;
     this.lives = 3;
     this.difficultyLevel = 0;
     this.currentSportKey = null;
     this.lastResult = null;
-    this.gameOver = false;
+    this.multiplier = 1;
+    this.roundIndex = 0;
   }
 
-  getDifficultyMultiplier() {
-    return 1 + this.difficultyLevel * 0.25;
+  startNewRun(startSportKey = null) {
+    this.resetRun();
+    this.currentSportKey = startSportKey || this.getNextSportKey(null);
+    return this.currentSportKey;
   }
 
-  clampLives() {
-    this.lives = Math.max(0, Math.min(99, this.lives));
+  getScore() {
+    return this.score;
   }
 
-  applyResult({ outcome, scoreDelta = 0, sportKey }) {
-    this.currentSportKey = sportKey ?? this.currentSportKey;
+  getLives() {
+    return this.lives;
+  }
 
-    if (typeof scoreDelta === 'number' && Number.isFinite(scoreDelta)) {
-      this.score += scoreDelta;
+  getDifficultyLevel() {
+    return this.difficultyLevel;
+  }
+
+  getMultiplier() {
+    return this.multiplier;
+  }
+
+  getCurrentSportKey() {
+    return this.currentSportKey;
+  }
+
+  getLastResult() {
+    return this.lastResult;
+  }
+
+  getSportPool() {
+    return [...SPORT_KEYS];
+  }
+
+  setCurrentSportKey(sportKey) {
+    this.currentSportKey = sportKey;
+    return this.currentSportKey;
+  }
+
+  getNextSportKey(currentSportKey = this.currentSportKey) {
+    const pool = SPORT_KEYS.filter((key) => key !== currentSportKey);
+    if (pool.length === 0) {
+      return currentSportKey || SPORT_KEYS[0];
     }
+    const index = Math.floor(Math.random() * pool.length);
+    return pool[index];
+  }
+
+  applyRoundResult(payload = {}) {
+    const outcome = payload.outcome === 'win' ? 'win' : 'fail';
+    const scoreDelta = Number.isFinite(payload.scoreDelta) ? payload.scoreDelta : 0;
+    const sportKey = payload.sportKey || this.currentSportKey || SPORT_KEYS[0];
 
     if (outcome === 'win') {
+      this.score += scoreDelta;
       this.difficultyLevel += 1;
-    } else if (outcome === 'fail') {
-      this.lives -= 1;
-      this.clampLives();
+      this.roundIndex += 1;
+    } else {
+      this.lives = Math.max(0, this.lives - 1);
+      this.roundIndex += 1;
     }
+
+    this.multiplier = 1 + this.difficultyLevel * 0.25;
 
     this.lastResult = {
       outcome,
+      scoreDelta,
+      sportKey,
       score: this.score,
-      sport: this.currentSportKey,
-      difficultyLevel: this.difficultyLevel,
       lives: this.lives,
-      difficultyMultiplier: this.getDifficultyMultiplier(),
-      at: Date.now(),
+      difficultyLevel: this.difficultyLevel,
+      multiplier: this.multiplier,
+      roundIndex: this.roundIndex
     };
 
-    if (this.lives <= 0) this.gameOver = true;
+    return this.lastResult;
   }
 
-  getNextSportKey() {
-    const pool = ['pickleball', 'soccer'];
-    if (!this.currentSportKey) return pool[Math.floor(Math.random() * pool.length)];
-    if (pool.length === 1) return pool[0];
-
-    let next;
-    do {
-      next = pool[Math.floor(Math.random() * pool.length)];
-    } while (next === this.currentSportKey);
-    return next;
+  prepareNextSport() {
+    const nextSportKey = this.getNextSportKey(this.currentSportKey);
+    this.currentSportKey = nextSportKey;
+    return nextSportKey;
   }
 
-  getResultPayload() {
-    return this.lastResult ?? {
-      outcome: 'fail',
+  isGameOver() {
+    return this.lives <= 0;
+  }
+
+  toJSON() {
+    return {
       score: this.score,
-      sport: this.currentSportKey,
-      difficultyLevel: this.difficultyLevel,
       lives: this.lives,
-      difficultyMultiplier: this.getDifficultyMultiplier(),
-      at: Date.now(),
+      difficultyLevel: this.difficultyLevel,
+      currentSportKey: this.currentSportKey,
+      lastResult: this.lastResult,
+      multiplier: this.multiplier,
+      roundIndex: this.roundIndex
     };
   }
 }
+
+let instance = null;
+
+export function getGameManager() {
+  if (!instance) {
+    instance = new GameManager();
+  }
+  return instance;
+}
+
+export function createGameManager() {
+  instance = new GameManager();
+  return instance;
+}
+
+export default getGameManager;
