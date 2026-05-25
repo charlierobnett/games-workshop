@@ -34,16 +34,19 @@ const HOUSE_RULES = `
 8. \`vite.config.js\`: \`export default { base: './' };\` — required for Azure Static Web Apps relative-path serving.
 9. Every game folder needs \`staticwebapp.config.json\` with SPA navigation fallback to \`/index.html\`.
 10. Use Arrow keys + Z (jump/dodge) + X (strike) via Phaser's keyboard plugin. Centralize in an InputManager module exporting verb-named accessors (e.g., \`isStrikePressed()\`).
+11. \`setAllowGravity\` is a BODY method, NOT a SPRITE method — always \`sprite.body.setAllowGravity(false)\`, never \`sprite.setAllowGravity(false)\`. Same applies to \`setGravityY\`. Phaser's Arcade Sprite delegates many methods to its body (setVelocity, setBounce, setDrag, setMaxVelocity) but NOT these two.
+12. Scene transitions can leave a Menu scene locked if the target scene crashes during create(). Defensive pattern: in MenuScene, hook \`this.events.on('wake', () => this.starting = false)\` and \`this.events.on('resume', () => this.starting = false)\`, AND do NOT gate dev shortcuts (debug keys for jumping to sports) behind the starting flag.
+13. Sport/scene routing keys MUST be string-matched consistently across files. Define them once as exported constants (e.g., in \`src/core/sport-keys.js\` or in \`asset-keys.js\` alongside asset keys) and import wherever a sport is referenced — MenuScene routing, ActiveScene sport dispatch, GameManager state, mash-up wiring. Silent-fail string mismatch ('mashup-picklesoccer' vs 'mashup-pickle-soccer') is the bug class to kill.
 
 # Asset Key Namespace Contract (Round 2 — kills the v1/v2 contract-drift bug class)
 
-11. Never invent raw asset key strings in scene files, entity files, or gameplay files. All asset keys must come from the canonical manifest file (\`asset-keys.js\` or \`asset-keys.json\`).
-12. Every sport-specific asset key must use this exact format: \`{sport}_{role}_{variant}\` in lowercase snake_case. Variant is mandatory even when only one version exists (use \`default\`).
-13. Valid sport namespaces: \`pickleball\`, \`soccer\`, \`volleyball\`. Valid shared namespaces: \`boot\`, \`ui\`, \`shared\`.
-14. Banned generic keys: \`ball\`, \`player\`, \`court\`, \`net\`, \`goal\`. Banned reordered forms: \`ball_soccer\`, \`paddle_pickleball\`, etc.
-15. If an asset is needed and no manifest entry exists, do not guess. Add the required entry to the manifest first, then reference it from code.
-16. BootScene must preload all declared asset keys by iterating the canonical manifest. Do not hand-type preload keys inline.
-17. If uncertain about a key name, stop and use the manifest as the source of truth. Never paraphrase or normalize asset names.
+14. Never invent raw asset key strings in scene files, entity files, or gameplay files. All asset keys must come from the canonical manifest file (\`asset-keys.js\` or \`asset-keys.json\`).
+15. Every sport-specific asset key must use this exact format: \`{sport}_{role}_{variant}\` in lowercase snake_case. Variant is mandatory even when only one version exists (use \`default\`).
+16. Valid sport namespaces: \`pickleball\`, \`soccer\`, \`volleyball\`. Valid shared namespaces: \`boot\`, \`ui\`, \`shared\`.
+17. Banned generic keys: \`ball\`, \`player\`, \`court\`, \`net\`, \`goal\`, \`paddle\`. Banned reordered forms: \`ball_soccer\`, \`paddle_pickleball\`, etc.
+18. If an asset is needed and no manifest entry exists, do not guess. Add the required entry to the manifest first, then reference it from code.
+19. BootScene must preload all declared asset keys by iterating the canonical manifest. Do not hand-type preload keys inline.
+20. If uncertain about a key name, stop and use the manifest as the source of truth. Never paraphrase or normalize asset names.
 
 # Spec Fidelity Awareness (Round 2)
 

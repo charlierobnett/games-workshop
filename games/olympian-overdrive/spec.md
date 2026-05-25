@@ -1,11 +1,13 @@
 # Olympian Overdrive — Spec
 
-**Date:** 2026-05-24
+**Date:** 2026-05-24 (v3.0) · revised 2026-05-25 (v3.1 — fidelity uplift)
 **Status:** approved
 **Target mode:** pipeline
-**Spec version:** 3
+**Spec version:** 3.1
 **Previous versions:** v1 — broken visuals (procedural rectangles), broken physics (no gravity), texture-key drift. v2 — added Texture Key Contract + Physics Tuning Targets; plays mechanically but lacks game feel.
 **Changes in v3:** Adds the four contracts from [ai-game-spec-methodology.md](../../../AI-OS/02_DOMAIN_OS/NEXUS_OS/knowledge/ai/process/ai-game-spec-methodology.md) — Game Feel, expanded Difficulty, expanded Visual Style, QA. Bakes in postmortems from v1+v2 bugs (see `games-workshop-agent-state.md`). All v2 content that worked (Texture Key Contract, Physics Tuning Targets, Locked Decisions) preserved.
+**Changes in v3.1 (2026-05-25 fidelity uplift):** Spec Review of v3.0 scored Game Feel at 68% predicted fidelity (no per-rule IDs, no runtime verification). v3.1 addresses: (a) Texture Key Contract rewritten to enforce `{sport}_{role}_{variant}` namespace grammar and declare `asset-keys.js` manifest as the single source of truth (closes the asset-key drift surface from v1/v2); (b) Game Feel Contract gets GF-01..GF-12 IDs in an event-response table with measurable magnitudes plus a `?dev=1` runtime instrumentation gate so impact feedback is verified, not just specified; (c) Difficulty Contract gets DI-01..DI-08 IDs consolidating escalation + anti-frustration into one verifiable progression table; (d) House Rules expanded 16 → 19 to include the asset-key namespace contract from Round 2 sprint placement. All v3.0 content otherwise preserved.
+
 **Source:** Google Doc "Olympian Overdrive Retro Game Spec" — see `spec-raw.md`
 
 ---
@@ -78,20 +80,36 @@ The proof-of-architecture build, now expanded with feel + QA. Demonstrates: FSM 
 
 ---
 
-## Texture Key Contract
+## Texture Key Contract  *(REWRITTEN IN v3 — namespace grammar)*
 
-These are the canonical asset keys. BootScene loads exactly these; every consumer file references these verbatim. **No invention allowed downstream** — house rule #11.
+These are the canonical asset keys. BootScene loads exactly these by iterating `asset-keys.js`; every consumer file imports from that manifest. **No invention allowed downstream** — house rules #11, #17, #18, #19.
+
+### Naming grammar (locked)
+
+- **Sport-specific keys:** `{sport}_{role}_{variant}` in lowercase snake_case where `sport` ∈ {`pickleball`, `soccer`, `volleyball`} and `variant` is mandatory (use `default` when there is only one version).
+- **Shared / cross-sport keys:** `{domain}_{role}_{variant}` where `domain` ∈ {`shared`, `ui`, `boot`}.
+- **Banned forms:** raw generic standalone keys (`ball`, `player`, `court`, `paddle`); reordered grammars (`ball_soccer`); camelCase; hyphens; mixed case.
+
+### Manifest file (declared, not invented)
+
+All asset keys MUST live in `games/olympian-overdrive/src/assets/asset-keys.js` and be imported wherever used. BootScene iterates this manifest in its `preload()`; no consumer file declares its own asset key. Pre-build static check fails the build if any raw string asset key appears outside `asset-keys.js`.
+
+### Canonical key table (M1)
 
 | Key | Source path | Used by |
 |---|---|---|
-| `player-jack` | `Sports Pack/PNG/Blue/characterBlue (3).png` | ActiveScene |
-| `player-ai-pickle` | `Sports Pack/PNG/Red/characterRed (1).png` | LevelManager_Pickleball |
-| `player-goalie` | `Sports Pack/PNG/Red/characterRed (5).png` | LevelManager_Soccer |
-| `ball-pickle` | `Sports Pack/PNG/Equipment/ball_tennis1.png` | LevelManager_Pickleball |
-| `ball-soccer` | `Sports Pack/PNG/Equipment/ball_soccer1.png` | LevelManager_Soccer |
-| `paddle` | `Sports Pack/PNG/Equipment/racket_wood.png` | Controller_Pickleball |
+| `shared_player_jack_default` | `Sports Pack/PNG/Blue/characterBlue (3).png` | ActiveScene (both sports) |
+| `pickleball_opponent_default` | `Sports Pack/PNG/Red/characterRed (1).png` | LevelManager_Pickleball |
+| `soccer_goalie_default` | `Sports Pack/PNG/Red/characterRed (5).png` | LevelManager_Soccer |
+| `pickleball_ball_default` | `Sports Pack/PNG/Equipment/ball_tennis1.png` | LevelManager_Pickleball |
+| `soccer_ball_default` | `Sports Pack/PNG/Equipment/ball_soccer1.png` | LevelManager_Soccer |
+| `pickleball_paddle_default` | `Sports Pack/PNG/Equipment/racket_wood.png` | Controller_Pickleball |
 
-**Asset copy step (pre-build):** All 6 files already at `games/olympian-overdrive/public/assets/sports/` from v2. No re-copy needed.
+### Migration note (v2 → v3 keys)
+
+Old `player-jack` → `shared_player_jack_default` · `player-ai-pickle` → `pickleball_opponent_default` · `player-goalie` → `soccer_goalie_default` · `ball-pickle` → `pickleball_ball_default` · `ball-soccer` → `soccer_ball_default` · `paddle` → `pickleball_paddle_default`. No aliases ship in v3 — full mechanical migration via `asset-keys.js`.
+
+**Asset copy step (pre-build):** All 6 files already at `games/olympian-overdrive/public/assets/sports/` from v2. No re-copy needed. `asset-keys.js` to be created during build.
 
 ---
 
@@ -124,38 +142,61 @@ The largest delta from v2. v2 has correct physics; v3 makes contact, scoring, an
 ### Player fantasy
 Player should feel like a snappy, capable athlete — every successful action has a brief, audible-then-visible *snap* of confirmation; every failure is clearly the universe's response, not an arbitrary punishment.
 
-### Responsiveness targets
-- Input-to-action latency: under 1 frame (16ms) — no buffer delays. Arrow key press = next-frame velocity update.
-- Strike (X key): registers on JustDown (first frame only), NOT while held. Hold-repeat is anti-feel.
-- Movement: zero acceleration ramp. Press → instant target velocity. Release → instant zero. Snappy, not realistic.
+### Responsiveness targets (GF-01..GF-03)
 
-### Impact feedback rules
+| ID | Rule | Verification |
+|---|---|---|
+| GF-01 | Input-to-action latency under 1 frame (16ms). Arrow key press = next-frame velocity update | Dev-mode log: input → velocity delta ≤ 16ms |
+| GF-02 | Strike (X) registers on JustDown only — not while held. Hold-repeat is anti-feel | Dev-mode log: holding X for 500ms fires exactly 1 strike event |
+| GF-03 | Movement: zero acceleration ramp. Press → instant target velocity. Release → instant zero | Dev-mode log: setVelocity called with target value on the same frame as keydown |
 
-**Paddle hits ball (Pickleball):**
-- Hit-stop: 50ms freeze (set `physics.world.isPaused = true` for 50ms, then resume)
-- Camera shake: 4px amplitude, 120ms decay
-- Particle burst at contact point: 6-8 small white circles (alpha 1.0 → 0 over 300ms, scale 1 → 0.3)
-- Volley count text pulses (scale 1 → 1.3 → 1 over 200ms)
-- No sound in M1 (deferred per Locked Decisions)
+### Impact feedback rules (GF-04..GF-12)
 
-**Ball enters goal (Soccer):**
-- Hit-stop: 80ms freeze (bigger event)
-- Camera shake: 8px amplitude, 200ms decay
-- Particle burst at goal mouth: 16-20 particles (alpha 1.0 → 0 over 600ms, scale 1 → 0.4)
-- Goal-zone background flashes from green to white-flash-to-green over 400ms
-- "GOAL!" text appears at screen center, scale 0 → 1.4 → 1 over 300ms, fades out by 1500ms
+Every GF-ID below is observable at runtime. Missing or wrong-magnitude implementation = contract violation. Magnitudes are not suggestions — they are the verified spec.
 
-**Player fails (timer expires OR fail condition):**
+| ID | Event | Behavior | Magnitude |
+|---|---|---|---|
+| GF-04 | Paddle hits ball (Pickleball) | Hit-stop (`physics.world.isPaused = true` then resume) | 50ms freeze |
+| GF-05 | Paddle hits ball (Pickleball) | Camera shake | 4px amplitude, 120ms decay |
+| GF-06 | Paddle hits ball (Pickleball) | Particle burst at contact — small white circles, alpha 1.0 → 0 over 300ms, scale 1 → 0.3 | 6-8 particles |
+| GF-07 | Volley count updates (Pickleball) | Volley count text pulses, scale 1 → 1.3 → 1 | 200ms total |
+| GF-08 | Ball enters goal (Soccer) | Hit-stop (bigger event than paddle hit) | 80ms freeze |
+| GF-09 | Ball enters goal (Soccer) | Camera shake | 8px amplitude, 200ms decay |
+| GF-10 | Ball enters goal (Soccer) | Particle burst at goal mouth — alpha 1.0 → 0 over 600ms, scale 1 → 0.4 | 16-20 particles |
+| GF-11 | Ball enters goal (Soccer) | Goal-zone background flashes green → white → green | 400ms total |
+| GF-12 | Ball enters goal (Soccer) | "GOAL!" text at screen center, scale 0 → 1.4 → 1 over 300ms, fades out by 1500ms | 1500ms total visible |
+
+**No sound in M1** (deferred per Locked Decisions). Sound design returns in v4 kid session.
+
+### Failure feedback (composite event — not per-element GF-tagged)
+
+When the player fails (timer expires OR fail condition triggers):
 - Hit-stop: 60ms freeze
 - Screen darkens to 80% black over 200ms
 - "FAIL!" text appears red, scale 0 → 1.2 → 1 over 250ms
 - Camera shake: 5px amplitude, 150ms decay
 - Background tints red over 400ms then transitions to ResultScene
 
-**Round transition (Result → next sport):**
+### Round transition (Result → next sport)
+
 - ResultScene shows outcome overlay 1500ms (per Locked Decisions)
 - During the last 300ms, fade out to black
 - ActiveScene fades in from black over 200ms
+
+### Runtime instrumentation  *(NEW IN v3 — Game Feel verification gate)*
+
+When the game URL includes `?dev=1`, the Game Feel layer logs every GF-ID firing to the browser console with timestamp and magnitude. Format: `[GF-04] hit-stop fired, duration=50ms, t=12.347s`. The Game Builder Agent's Post-Build Review routine inspects the dev-mode log against the GF table:
+
+- **Pass:** every GF-ID fires at least once during the QA playtest with magnitude within ±10% of spec
+- **Fail:** any GF-ID never fires OR fires with magnitude outside ±10% tolerance
+
+`?dev=1` mode is non-default; production build strips logging. This makes Game Feel *measurable*, not just aspirational — closing the v2 gap where impact feedback was specified but never verified.
+
+**Q-S → GF-ID mapping** (used by Post-Build Review):
+- Q-S01 (paddle contact feels responsive) → GF-01, GF-02, GF-04, GF-05, GF-06, GF-07
+- Q-S02 (goal celebration feels rewarding) → GF-08, GF-09, GF-10, GF-11, GF-12
+- Q-S03 (failure feels like "the universe responded") → Failure feedback section (composite, no per-element GF-ID)
+- Q-S04 (difficulty feels energetic) → routed to Difficulty Contract DI-IDs, not Game Feel
 
 ### Camera rules
 - Top-down view has no camera follow (player constrained to small playfield, no scrolling needed)
@@ -201,16 +242,23 @@ Kids ages 12-14 (Jack 12, Nola 14, plus their friends). First-time players shoul
 - 500ms paddle active window — kid-reactable
 - No tightening hitboxes as difficulty increases (v1/v2 had this in spec; remove)
 
-### Escalation rules
-- Difficulty multiplier: `multiplier = 1 + (difficultyLevel × 0.25)` — affects SCORE only, not gameplay parameters
-- Add **variety, not tightness**, as difficulty grows: future mash-ups, future sports
-- **Never** make hitboxes smaller or AI faster on the same sport in M1 — kids learn the mechanic at one stable difficulty
-- (M2+) Boss rounds introduce harder mechanics; base sports stay reachable
+### Escalation rules + anti-frustration (DI-01..DI-08)
 
-### Anti-frustration constraints
-- Never: instant-fail on a single bad input (current Pickleball "ball touches ground = fail" is borderline — consider 2-strike before fail in M2)
-- Never: 2 new mechanics in same encounter
-- Recovery after failure: fast (1.5s overlay, no menus, auto-next)
+Every DI-ID below is a load-bearing difficulty rule. Violating any of these = contract violation. `review-game.js` (when built) checks DI-01, DI-02, DI-03 statically; DI-04 through DI-08 are kid-playtest observations.
+
+| ID | Rule | Scope | Verification |
+|---|---|---|---|
+| DI-01 | Difficulty multiplier: `multiplier = 1 + (difficultyLevel × 0.25)` — affects SCORE only, not gameplay parameters | All sports | Static: grep gameplay param assignments for `difficultyLevel` references |
+| DI-02 | Never reduce hitbox size on the same sport across difficulty levels in M1 | All sports | Static: hitbox dimensions are constants, not difficulty-derived |
+| DI-03 | Never increase AI speed on the same sport across difficulty levels in M1 | All sports | Static: AI velocity constants, not difficulty-derived |
+| DI-04 | Lives start at 3; first session expected 4-8 rounds before game-over | GameManager | Playtest |
+| DI-05 | Recovery after failure: 1.5s ResultScene overlay, no menus, auto-next sport | ResultScene | Playtest + code: `delayedCall(1500, ...)` |
+| DI-06 | Never 2 new mechanics in the same encounter — players learn one thing per round | Mash-up + future sports | Playtest |
+| DI-07 | Difficulty adds *variety, not tightness* — future mash-ups, future sports; never tighter existing sports | M2+ design rule | Design review |
+| DI-08 | Never instant-fail on a single bad input. (M2 consideration: 2-strike before fail in Pickleball ball-touches-ground) | All sports | Playtest |
+
+(M2+) Boss rounds introduce harder mechanics; base sports stay reachable per DI-07.
+
 
 ### Success metrics
 - By end of session (~6-8 rounds), player demonstrates: confident movement, intentional strike timing, awareness of win condition
@@ -255,8 +303,27 @@ Bright, flat-shaded top-down sports pixel art using Kenney Sports Pack as M1 bas
 
 If any element competes with ball visibility, reduce its saturation or scale.
 
+### Visual rules (VI-01..VI-08)  *(NEW IN v3.1 — element-scoped IDs)*
+
+Every VI-ID below is a load-bearing visual rule. Violating any of these = contract violation. VI-01..VI-04 are statically checkable; VI-05..VI-08 are visual-review observations.
+
+| ID | Element | Rule | Quantified target | Verification |
+|---|---|---|---|---|
+| VI-01 | Palette | Court greens locked at `#2f9e44` primary / `#1f7a33` accent / `#103a2b` bg; UI accents at `#2ef2ff` cyan / `#7bff00` go / `#ff2d55` fail | Exact hex match — no near-shade substitution | Static: grep `setFillStyle\|setStrokeStyle\|setColor\|setBackgroundColor` for hex values, must match locked set |
+| VI-02 | Hazard zone | Kitchen zone (Pickleball) uses `#ff2e63` fill at 18% alpha, stroke at 55% alpha, 2px stroke width | Color contrast vs `#2f9e44` court ≥ 4.5:1 (WCAG AA) | Static: hex/alpha values present; runtime: visual confirm |
+| VI-03 | UI elements | Rectangles with 2-4px strokes, monospace text only (no proportional fonts) | Stroke width ∈ {2,3,4} px; font family = monospace | Static: grep `setStrokeStyle` widths; grep `fontFamily` |
+| VI-04 | Asset filtering | All sprites pixel-perfect, no anti-aliasing, no shader blend modes | `texture.setFilter(Phaser.Textures.FilterMode.NEAREST)` on load OR project-wide `roundPixels: true` | Static: confirm one of the two patterns present |
+| VI-05 | Characters | Rounded oval silhouettes; top-down heads with body below (Kenney convention) | Source assets from Kenney Sports Pack only in M1 | Visual review during Post-Build |
+| VI-06 | Hazards | Rectangular zones with bold colored borders — never just a tint | Border stroke alpha ≥ 55%; fill alpha ≤ 25% | Visual review |
+| VI-07 | Background saturation | Courts saturated; HUD overlays low-saturation so HUD never competes with ball | HUD background fills max 30% saturation | Visual review |
+| VI-08 | Ball visibility | Ball is the highest-saturation moving element on screen at all times | No other moving element exceeds ball saturation | Visual review (readability priorities #1) |
+
+**Q-S → VI-ID mapping** (used by Post-Build Review for subjective visual feel):
+- Q-S subjective visual reads route through VI-05, VI-06, VI-07, VI-08
+- VI-01..VI-04 are pre-playtest static gates; failures block ship per QA Contract acceptance gate
+
 ### Asset key conventions
-Locked in Texture Key Contract above. Naming pattern: `<role>-<descriptor>` (e.g., `player-jack`, `ball-pickle`, `paddle`). No camelCase, no underscores.
+Locked in Texture Key Contract above. Naming grammar (v3): `{sport}_{role}_{variant}` for sport-specific keys, `{shared|ui|boot}_{role}_{variant}` for cross-sport keys. Lowercase snake_case only — no camelCase, no hyphens, no mixed case. All keys live in `asset-keys.js` and are imported, never inlined as raw strings (house rules #17-19).
 
 ---
 
@@ -329,9 +396,9 @@ Ship-ready when: all Q-M01 to Q-M08 pass, all Q-R01 to Q-R06 pass, at least 3 of
 
 ---
 
-## House Rules for the Pipeline Build (16 rules — see `feedback_phaser_house_rules.md` memory)
+## House Rules for the Pipeline Build (19 rules — see `feedback_phaser_house_rules.md` memory)
 
-These get injected into `build-game.js` system prompt verbatim. New since v2: rules #14-16.
+These get injected into `build-game.js` system prompt verbatim. New since v2: rules #14-16 (v2 build session). New since v3 spec authoring: rules #17-19 (asset-key namespace contract from Round 2 sprint placement, 2026-05-24) — these are enforced by the pre-build static checker.
 
 1. `physics.add.group()` MUST include `classType: Phaser.Physics.Arcade.Sprite` + explicit `allowGravity`.
 2. Use `group.create(x, y, key)` not `physics.add.sprite() + group.add()`.
@@ -349,6 +416,9 @@ These get injected into `build-game.js` system prompt verbatim. New since v2: ru
 14. **`setAllowGravity` is a BODY method**, not a SPRITE method. Always `sprite.body.setAllowGravity(false)`.
 15. Scene transitions can leave menu locked on crash — defensive: `events.on('wake'|'resume', () => starting=false)` AND don't gate dev shortcuts behind starting flag.
 16. **Sport/scene routing keys must be string-matched consistently across files** — use named constants in a shared file. v2 had `'mashup-picklesoccer'` vs `'mashup-pickle-soccer'` silent fail.
+17. **Never use a raw string literal for a Phaser asset key outside the canonical asset manifest file.** All asset keys live in `asset-keys.js` and are imported everywhere else. This eliminates duplicate sources of truth — the largest contract-drift surface in v1/v2.
+18. **All sport-specific asset keys must use `{sport}_{role}_{variant}` in lowercase snake_case.** The `sport` segment is mandatory and first. The `variant` segment is mandatory and last, including `default` when there is only one version. Banned generic standalone keys: `ball`, `player`, `court`, `net`, `goal`, `paddle`. Reordered forms like `ball_soccer` are also banned — namespace first or fail.
+19. **BootScene must preload assets by iterating the canonical `asset-keys.js` manifest.** Do not hand-type preload keys inline — that recreates the exact drift surface we are trying to remove. Pre-build static check fails the build if raw string asset keys appear in any consumer file.
 
 ---
 
