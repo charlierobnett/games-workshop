@@ -1,124 +1,119 @@
 import Phaser from 'phaser';
 import { getGameManager } from '../core/GameManager.js';
 
+const RESULT_SCENE_KEY = 'ResultScene';
+const OVERLAY_DURATION = 1500;
+const FADE_OUT_START = 1200;
+const FADE_OUT_DURATION = 300;
+
 export default class ResultScene extends Phaser.Scene {
   constructor() {
-    super('ResultScene');
-    this.gameManager = null;
-    this.result = null;
-    this.advanceTimer = null;
+    super(RESULT_SCENE_KEY);
+    this.starting = false;
   }
 
-  init(data) {
-    this.gameManager = getGameManager();
-    this.result = data || this.gameManager.getLastResult() || {
-      outcome: 'fail',
-      scoreDelta: 0,
-      sportKey: this.gameManager.getCurrentSportKey() || 'pickleball',
-      score: this.gameManager.getScore(),
-      lives: this.gameManager.getLives(),
-      difficultyLevel: this.gameManager.getDifficultyLevel(),
-      multiplier: this.gameManager.getMultiplier(),
-      roundIndex: 0
-    };
-  }
-
-  create() {
-    const { width, height } = this.scale;
-    const isWin = this.result.outcome === 'win';
-    const bgColor = isWin ? 0x1f7a3a : 0x8b1e1e;
-    const accentColor = isWin ? '#8cff9b' : '#ff9b9b';
-
-    this.cameras.main.setBackgroundColor(bgColor);
-
-    this.add.rectangle(width * 0.5, height * 0.5, width, height, bgColor, 0.92);
-
-    const title = this.add.text(
-      width * 0.5,
-      height * 0.34,
-      isWin ? 'VICTORY!' : 'FAILED!',
-      {
-        fontFamily: 'monospace',
-        fontSize: '40px',
-        fontStyle: 'bold',
-        align: 'center'
-      }
-    ).setOrigin(0.5);
-    title.setColor('#ffffff');
-
-    const sportLabel = this.add.text(
-      width * 0.5,
-      height * 0.47,
-      this.formatSportName(this.result.sportKey),
-      {
-        fontFamily: 'monospace',
-        fontSize: '20px',
-        align: 'center'
-      }
-    ).setOrigin(0.5);
-    sportLabel.setColor(accentColor);
-
-    const deltaPrefix = this.result.scoreDelta >= 0 ? '+' : '';
-    const summary = this.add.text(
-      width * 0.5,
-      height * 0.58,
-      `SCORE ${deltaPrefix}${this.result.scoreDelta}\nTOTAL ${this.result.score}\nLIVES ${this.result.lives}`,
-      {
-        fontFamily: 'monospace',
-        fontSize: '18px',
-        align: 'center',
-        lineSpacing: 8
-      }
-    ).setOrigin(0.5);
-    summary.setColor('#ffffff');
-
-    const footer = this.add.text(
-      width * 0.5,
-      height * 0.8,
-      this.gameManager.isGameOver() ? 'RUN OVER' : 'NEXT EVENT LOADING...',
-      {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        align: 'center'
-      }
-    ).setOrigin(0.5);
-    footer.setColor('#d8f3ff');
-
-    this.tweens.add({
-      targets: [title, sportLabel, summary],
-      alpha: { from: 0.6, to: 1 },
-      duration: 300,
-      yoyo: false
+  create(data = {}) {
+    this.starting = false;
+    this.events.on('wake', () => {
+      this.starting = false;
+    });
+    this.events.on('resume', () => {
+      this.starting = false;
     });
 
-    this.advanceTimer = this.time.delayedCall(1500, () => {
-      if (this.gameManager.isGameOver()) {
-        this.scene.start('MenuScene', { gameOver: true, result: this.result });
+    const gameManager = this.registry.get('gameManager') || getGameManager();
+    this.registry.set('gameManager', gameManager);
+
+    const outcome = data.outcome || gameManager.lastOutcome || 'fail';
+    const baseScore = typeof data.baseScore === 'number' ? data.baseScore : 100;
+    const nextSport = data.nextSport || null;
+    const completedState = gameManager.completeRound({ outcome, baseScore, nextSport });
+
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const didWin = outcome === 'win';
+    const isGameOver = completedState.lives <= 0;
+
+    this.cameras.main.setBackgroundColor('#000000');
+    this.cameras.main.fadeIn(120, 0, 0, 0);
+
+    const bgColor = didWin ? 0x1f7a33 : 0x5a1020;
+    const accentColor = didWin ? '#7bff00' : '#ff2d55';
+    const titleText = isGameOver ? 'GAME OVER' : didWin ? 'WIN!' : 'FAIL!';
+    const subtitleText = isGameOver
+      ? 'Out of lives'
+      : didWin
+        ? `+${Math.round(baseScore * gameManager.getMultiplier() / (1 + 0.25)) || Math.round(baseScore)} SCORE`
+        : 'Try the next event';
+
+    const overlay = this.add.rectangle(width * 0.5, height * 0.5, width, height, bgColor, 0.88);
+    overlay.setDepth(10);
+
+    const panel = this.add.rectangle(width * 0.5, height * 0.5, 360, 190, 0x000000, 0.45);
+    panel.setStrokeStyle(3, didWin ? 0x7bff00 : 0xff2d55, 0.9);
+    panel.setDepth(11);
+
+    const title = this.add.text(width * 0.5, height * 0.5 - 48, titleText, {
+      fontFamily: 'monospace',
+      fontSize: '34px',
+      fontStyle: 'bold',
+      align: 'center',
+    });
+    title.setOrigin(0.5);
+    title.setColor(accentColor);
+    title.setDepth(12);
+
+    const subtitle = this.add.text(width * 0.5, height * 0.5 - 4, subtitleText, {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      align: 'center',
+    });
+    subtitle.setOrigin(0.5);
+    subtitle.setColor('#ffffff');
+    subtitle.setDepth(12);
+
+    const stats = this.add.text(
+      width * 0.5,
+      height * 0.5 + 42,
+      [
+        `SCORE: ${completedState.score}`,
+        `MULT: x${completedState.multiplier.toFixed(2)}`,
+        `LIVES: ${'❤️ '.repeat(completedState.lives).trim() || '0'}`,
+      ].join('\n'),
+      {
+        fontFamily: 'monospace',
+        fontSize: '15px',
+        align: 'center',
+        lineSpacing: 6,
+      }
+    );
+    stats.setOrigin(0.5);
+    stats.setColor('#2ef2ff');
+    stats.setDepth(12);
+
+    this.tweens.add({
+      targets: [panel, title, subtitle, stats],
+      scaleX: { from: 0.92, to: 1 },
+      scaleY: { from: 0.92, to: 1 },
+      alpha: { from: 0, to: 1 },
+      duration: 180,
+      ease: 'Back.Out',
+    });
+
+    this.time.delayedCall(FADE_OUT_START, () => {
+      this.cameras.main.fadeOut(FADE_OUT_DURATION, 0, 0, 0);
+    });
+
+    this.time.delayedCall(OVERLAY_DURATION, () => {
+      if (isGameOver) {
+        gameManager.resetRun();
+        this.scene.start('MenuScene');
         return;
       }
 
-      const nextSportKey = this.gameManager.prepareNextSport();
-      this.scene.start('ActiveScene', { sportKey: nextSportKey });
+      this.scene.start('ActiveScene', {
+        sportKey: gameManager.getNextSport(),
+      });
     });
-  }
-
-  shutdown() {
-    if (this.advanceTimer) {
-      this.advanceTimer.remove(false);
-      this.advanceTimer = null;
-    }
-  }
-
-  formatSportName(sportKey) {
-    if (sportKey === 'pickleball') {
-      return 'PICKLEBALL';
-    }
-    if (sportKey === 'soccer') {
-      return 'SOCCER';
-    }
-    if (sportKey === 'mashup-picklesoccer') {
-      return 'PICKLE-SOCCER';
-    }
-    return String(sportKey || 'SPORT').replace(/[-_]/g, ' ').toUpperCase();
   }
 }

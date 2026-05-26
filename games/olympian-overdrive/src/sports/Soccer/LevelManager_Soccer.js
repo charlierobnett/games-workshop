@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import GameFeel from '../../core/GameFeel';
+import { ASSET_KEYS } from '../../assets/asset-keys';
 
 export default class LevelManager_Soccer {
   constructor() {
@@ -7,188 +9,172 @@ export default class LevelManager_Soccer {
     this.ball = null;
     this.goalie = null;
     this.goalZone = null;
-    this.pitchBounds = new Phaser.Geom.Rectangle(40, 40, 560, 400);
-    this.goalBounds = new Phaser.Geom.Rectangle(200, 40, 240, 40);
-    this.gameEnded = false;
+    this.goalTrigger = null;
+    this.pitchBounds = null;
+    this.background = null;
+    this.goalScored = false;
+    this.goalieTween = null;
+    this.feel = null;
   }
 
   init(scene, controller) {
     this.scene = scene;
     this.controller = controller;
-    this.gameEnded = false;
+    this.feel = scene.gameFeel || new GameFeel(scene);
+    this.goalScored = false;
 
     this.createPitch();
     this.createBall();
     this.createGoalie();
     this.createCollisions();
 
-    // Proximity-kick fallback: X also triggers a kick if ball is within 80px,
-    // independent of physics overlap (which misses edge-tangent contacts).
-    this._kickHandler = () => this.tryProximityKick();
-    this.scene.input.keyboard.on('keydown-X', this._kickHandler);
+    if (this.controller && typeof this.controller.init === 'function') {
+      this.controller.init(scene.player, {
+        ball: this.ball,
+        pitchBounds: this.pitchBounds
+      });
+    }
+
+    return {
+      ball: this.ball,
+      goalie: this.goalie,
+      goalZone: this.goalZone
+    };
   }
 
   createPitch() {
-    const g = this.scene.add.graphics();
-    g.lineStyle(4, 0xffffff, 1);
-    g.fillStyle(0x2f9e44, 1);
-    g.fillRect(this.pitchBounds.x, this.pitchBounds.y, this.pitchBounds.width, this.pitchBounds.height);
-    g.strokeRect(this.pitchBounds.x, this.pitchBounds.y, this.pitchBounds.width, this.pitchBounds.height);
+    const scene = this.scene;
 
-    g.fillStyle(0x1f7a33, 1);
-    g.fillRect(this.goalBounds.x, this.goalBounds.y, this.goalBounds.width, this.goalBounds.height);
-    g.lineStyle(2, 0xffffff, 1);
-    g.strokeRect(this.goalBounds.x, this.goalBounds.y, this.goalBounds.width, this.goalBounds.height);
+    this.background = scene.add.rectangle(320, 240, 640, 480, 0x103a2b, 1);
+    this.background.setDepth(-20);
 
-    g.lineStyle(2, 0xffffff, 0.8);
-    g.strokeCircle(320, 240, 55);
-    g.beginPath();
-    g.moveTo(40, 240);
-    g.lineTo(600, 240);
-    g.strokePath();
+    const pitch = scene.add.rectangle(320, 240, 560, 400, 0x2f9e44, 1);
+    pitch.setStrokeStyle(3, 0xffffff, 1);
+    pitch.setDepth(-10);
 
-    this.goalZone = this.scene.add.zone(
-      this.goalBounds.centerX,
-      this.goalBounds.centerY,
-      this.goalBounds.width,
-      this.goalBounds.height
-    );
-    this.scene.physics.add.existing(this.goalZone, true);
+    this.goalZone = scene.add.rectangle(320, 60, 240, 40, 0x1f7a33, 1);
+    this.goalZone.setStrokeStyle(3, 0xffffff, 1);
+    this.goalZone.setDepth(-9);
+
+    const centerCircle = scene.add.circle(320, 240, 48);
+    centerCircle.setStrokeStyle(3, 0xffffff, 1);
+    centerCircle.setDepth(-9);
+
+    const centerSpot = scene.add.circle(320, 240, 4, 0xffffff, 1);
+    centerSpot.setDepth(-8);
+
+    const midfieldLine = scene.add.line(320, 240, 0, -200, 0, 200, 0xffffff, 1);
+    midfieldLine.setLineWidth(3, 3);
+    midfieldLine.setDepth(-9);
+
+    const goalPosts = scene.add.rectangle(320, 60, 240, 40);
+    goalPosts.setStrokeStyle(4, 0xffffff, 1);
+    goalPosts.setDepth(-8);
+
+    this.pitchBounds = new Phaser.Geom.Rectangle(40, 40, 560, 400);
+    this.goalTrigger = new Phaser.Geom.Rectangle(200, 40, 240, 40);
   }
 
   createBall() {
-    this.ball = this.scene.physics.add.sprite(320, 360, 'ball-soccer');
-    this.ball.setCollideWorldBounds(false);
+    const scene = this.scene;
+    this.ball = scene.physics.add.sprite(320, 360, ASSET_KEYS.SOCCER_BALL_DEFAULT);
+    this.ball.setDepth(20);
+    this.ball.setCollideWorldBounds(true);
     this.ball.setBounce(0.5, 0.5);
     this.ball.setDrag(80, 80);
-    this.ball.body.setAllowGravity(false);
     this.ball.setMaxVelocity(500, 500);
-    this.ball.setDepth(5);
+    this.ball.body.setAllowGravity(false);
     this.ball.body.setCircle(Math.min(this.ball.width, this.ball.height) * 0.35);
   }
 
   createGoalie() {
-    this.goalie = this.scene.physics.add.sprite(320, 90, 'player-goalie');
+    const scene = this.scene;
+    this.goalie = scene.physics.add.sprite(220, 90, ASSET_KEYS.SOCCER_GOALIE_DEFAULT);
+    this.goalie.setDepth(15);
     this.goalie.setImmovable(true);
     this.goalie.body.setAllowGravity(false);
-    this.goalie.setDepth(6);
-    this.goalie.body.setSize(this.goalie.width * 0.7, this.goalie.height * 0.7, true);
+    this.goalie.body.setSize(this.goalie.width * 0.8, this.goalie.height * 0.8, true);
 
-    this.scene.tweens.add({
+    this.goalieTween = scene.tweens.add({
       targets: this.goalie,
-      x: { from: 220, to: 420 },
+      x: 420,
       duration: 750,
       yoyo: true,
       repeat: -1,
-      ease: 'Sine.InOut'
+      ease: 'Sine.easeInOut'
     });
   }
 
   createCollisions() {
-    const hitboxGroup = this.controller.getHitbox();
+    const scene = this.scene;
 
-    if (hitboxGroup) {
-      this.scene.physics.add.overlap(hitboxGroup, this.ball, this.handleStrike, null, this);
-    }
-
-    this.scene.physics.add.collider(this.ball, this.goalie, this.handleGoalieCollision, null, this);
-    this.scene.physics.add.overlap(this.ball, this.goalZone, this.handleGoal, null, this);
+    scene.physics.add.collider(scene.player, this.goalie);
+    scene.physics.add.collider(this.ball, this.goalie, this.handleBallGoalieCollision, null, this);
+    scene.physics.add.collider(this.ball, scene.player);
   }
 
-  handleStrike(hitbox, ball) {
-    if (this.gameEnded || !hitbox.active || !ball.active) {
-      return;
-    }
-
-    const player = this.controller.player;
-    if (!player) {
-      return;
-    }
-
-    let dx = ball.x - player.x;
-    if (Math.abs(dx) < 8) {
-      dx = 8 * (Phaser.Math.Between(0, 1) === 0 ? -1 : 1);
-    }
-
-    const impulse = 4;
-    ball.setVelocity(dx * impulse, -300 * impulse);
-  }
-
-  // Fallback: imperative kick on X-press when ball is within range,
-  // independent of overlap. Solves the edge-tangent miss.
-  tryProximityKick() {
-    if (this.gameEnded || !this.ball || !this.ball.active) return;
-    const player = this.controller?.player;
-    if (!player) return;
-    const dist = Phaser.Math.Distance.Between(player.x, player.y, this.ball.x, this.ball.y);
-    if (dist <= 80) {
-      this.handleStrike({ active: true }, this.ball);
-    }
-  }
-
-  handleGoalieCollision() {
-    if (this.gameEnded) {
-      return;
-    }
-
-    if (this.ball && this.ball.body) {
-      this.ball.body.velocity.x *= 0.95;
-    }
-  }
-
-  handleGoal() {
-    if (this.gameEnded) {
-      return;
-    }
-
-    this.gameEnded = true;
-    this.scene.gameOver({
-      outcome: 'win',
-      scoreDelta: 100,
-      sportKey: this.scene.sportKey
-    });
+  handleBallGoalieCollision() {
+    if (this.goalScored) return;
+    this.ball.setVelocityY(Math.max(this.ball.body.velocity.y, 120));
   }
 
   update() {
-    if (this.gameEnded || !this.ball) {
-      return;
-    }
+    if (!this.scene.gameActive || !this.scene.player) return;
+    if (!this.ball || this.goalScored) return;
 
-    if (
-      this.ball.x < this.pitchBounds.left ||
-      this.ball.x > this.pitchBounds.right ||
-      this.ball.y < this.pitchBounds.top ||
-      this.ball.y > this.pitchBounds.bottom
-    ) {
-      if (!this.isBallInGoal()) {
-        this.gameEnded = true;
-        this.scene.gameOver({
-          outcome: 'fail',
-          scoreDelta: 0,
-          sportKey: this.scene.sportKey
-        });
-      }
+    this.constrainPlayer();
+    this.checkGoal();
+  }
+
+  constrainPlayer() {
+    const player = this.scene.player;
+    const halfW = player.displayWidth * 0.5;
+    const halfH = player.displayHeight * 0.5;
+
+    if (player.x - halfW <= this.pitchBounds.left && player.body.velocity.x < 0) {
+      player.setVelocityX(0);
+      player.x = this.pitchBounds.left + halfW;
+    }
+    if (player.x + halfW >= this.pitchBounds.right && player.body.velocity.x > 0) {
+      player.setVelocityX(0);
+      player.x = this.pitchBounds.right - halfW;
+    }
+    if (player.y - halfH <= this.pitchBounds.top && player.body.velocity.y < 0) {
+      player.setVelocityY(0);
+      player.y = this.pitchBounds.top + halfH;
+    }
+    if (player.y + halfH >= this.pitchBounds.bottom && player.body.velocity.y > 0) {
+      player.setVelocityY(0);
+      player.y = this.pitchBounds.bottom - halfH;
     }
   }
 
-  isBallInGoal() {
-    return Phaser.Geom.Rectangle.Contains(this.goalBounds, this.ball.x, this.ball.y);
+  checkGoal() {
+    if (!this.ball.body) return;
+
+    const inGoalX = this.ball.x >= 200 && this.ball.x <= 440;
+    const inGoalY = this.ball.y < 80;
+
+    if (inGoalX && inGoalY) {
+      this.goalScored = true;
+      this.ball.setVelocity(0, 0);
+      this.ball.body.enable = false;
+      if (this.goalieTween) {
+        this.goalieTween.pause();
+      }
+      this.feel.soccerGoal(this.goalZone, 320, 120);
+      this.scene.time.delayedCall(900, () => {
+        if (this.scene && this.scene.gameActive) {
+          this.scene.gameOver('win');
+        }
+      });
+    }
   }
 
   destroy() {
-    if (this.ball) {
-      this.ball.destroy();
-      this.ball = null;
-    }
-
-    if (this.goalie) {
-      this.goalie.destroy();
-      this.goalie = null;
-    }
-
-    if (this.goalZone) {
-      this.goalZone.destroy();
-      this.goalZone = null;
+    if (this.goalieTween) {
+      this.goalieTween.stop();
+      this.goalieTween = null;
     }
   }
 }

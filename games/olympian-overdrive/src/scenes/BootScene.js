@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createGameManager } from '../core/GameManager.js';
+import ASSET_MANIFEST from '../assets/asset-keys.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -7,37 +7,56 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('player-jack', 'assets/sports/player-jack.png');
-    this.load.image('player-ai-pickle', 'assets/sports/player-ai-pickle.png');
-    this.load.image('player-goalie', 'assets/sports/player-goalie.png');
-    this.load.image('ball-pickle', 'assets/sports/ball-pickle.png');
-    this.load.image('ball-soccer', 'assets/sports/ball-soccer.png');
-    this.load.image('paddle', 'assets/sports/paddle.png');
+    const { width, height } = this.scale;
+    const bg = this.add.rectangle(width * 0.5, height * 0.5, width, height, 0x103a2b);
+    const barBox = this.add.rectangle(width * 0.5, height * 0.5, 324, 28, 0x000000, 0.35);
+    barBox.setStrokeStyle(3, 0x2ef2ff, 0.9);
 
-    const width = this.scale.width;
-    const height = this.scale.height;
+    const progressBar = this.add.rectangle(width * 0.5 - 156, height * 0.5, 0, 18, 0x2ef2ff, 1);
+    progressBar.setOrigin(0, 0.5);
 
-    const loadingText = this.add.text(width / 2, height / 2 - 16, 'LOADING...', {
+    const title = this.add.text(width * 0.5, height * 0.5 - 48, 'OLYMPIAN OVERDRIVE', {
       fontFamily: 'monospace',
-      fontSize: '18px'
+      fontSize: '20px',
+      color: '#ffffff',
     }).setOrigin(0.5);
-    loadingText.setColor('#ffffff');
+    title.setColor('#ffffff');
 
-    const progressText = this.add.text(width / 2, height / 2 + 16, '0%', {
+    const loadingText = this.add.text(width * 0.5, height * 0.5 + 36, 'LOADING 0%', {
       fontFamily: 'monospace',
-      fontSize: '14px'
+      fontSize: '14px',
+      color: '#2ef2ff',
     }).setOrigin(0.5);
-    progressText.setColor('#00ffff');
+    loadingText.setColor('#2ef2ff');
 
     this.load.on('progress', (value) => {
-      progressText.setText(`${Math.round(value * 100)}%`);
+      progressBar.width = 312 * value;
+      loadingText.setText(`LOADING ${Math.round(value * 100)}%`);
     });
+
+    this.load.on('complete', () => {
+      bg.destroy();
+      barBox.destroy();
+      progressBar.destroy();
+      title.destroy();
+      loadingText.destroy();
+    });
+
+    for (const asset of ASSET_MANIFEST) {
+      if (asset.type === 'image') {
+        this.load.image(asset.key, asset.path);
+      }
+    }
   }
 
   create() {
-    const gameManager = createGameManager();
-    this.game.registry.set('gameManager', gameManager);
-    this.game.registry.set('roundDurationMs', 15000);
+    this.textures.each((texture) => {
+      if (texture && texture.key && texture.key !== '__DEFAULT' && texture.key !== '__MISSING') {
+        texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    });
+
+    this.cameras.main.setBackgroundColor('#103a2b');
     this.scene.start('MenuScene');
   }
 }

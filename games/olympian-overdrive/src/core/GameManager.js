@@ -1,4 +1,4 @@
-const SPORT_KEYS = ['pickleball', 'soccer'];
+import { getRandomBaseSportKey, isValidSportKey } from './sport-keys.js';
 
 class GameManager {
   constructor() {
@@ -9,110 +9,148 @@ class GameManager {
     this.score = 0;
     this.lives = 3;
     this.difficultyLevel = 0;
-    this.currentSportKey = null;
-    this.lastResult = null;
     this.multiplier = 1;
-    this.roundIndex = 0;
+    this.roundTime = 15;
+    this.currentSport = null;
+    this.nextSport = getRandomBaseSportKey();
+    this.lastOutcome = null;
+    this.roundsPlayed = 0;
   }
 
-  startNewRun(startSportKey = null) {
-    this.resetRun();
-    this.currentSportKey = startSportKey || this.getNextSportKey(null);
-    return this.currentSportKey;
-  }
-
-  getScore() {
-    return this.score;
-  }
-
-  getLives() {
-    return this.lives;
-  }
-
-  getDifficultyLevel() {
-    return this.difficultyLevel;
-  }
-
-  getMultiplier() {
-    return this.multiplier;
-  }
-
-  getCurrentSportKey() {
-    return this.currentSportKey;
-  }
-
-  getLastResult() {
-    return this.lastResult;
-  }
-
-  getSportPool() {
-    return [...SPORT_KEYS];
-  }
-
-  setCurrentSportKey(sportKey) {
-    this.currentSportKey = sportKey;
-    return this.currentSportKey;
-  }
-
-  getNextSportKey(currentSportKey = this.currentSportKey) {
-    const pool = SPORT_KEYS.filter((key) => key !== currentSportKey);
-    if (pool.length === 0) {
-      return currentSportKey || SPORT_KEYS[0];
-    }
-    const index = Math.floor(Math.random() * pool.length);
-    return pool[index];
-  }
-
-  applyRoundResult(payload = {}) {
-    const outcome = payload.outcome === 'win' ? 'win' : 'fail';
-    const scoreDelta = Number.isFinite(payload.scoreDelta) ? payload.scoreDelta : 0;
-    const sportKey = payload.sportKey || this.currentSportKey || SPORT_KEYS[0];
-
-    if (outcome === 'win') {
-      this.score += scoreDelta;
-      this.difficultyLevel += 1;
-      this.roundIndex += 1;
-    } else {
-      this.lives = Math.max(0, this.lives - 1);
-      this.roundIndex += 1;
-    }
-
-    this.multiplier = 1 + this.difficultyLevel * 0.25;
-
-    this.lastResult = {
-      outcome,
-      scoreDelta,
-      sportKey,
+  getState() {
+    return {
       score: this.score,
       lives: this.lives,
       difficultyLevel: this.difficultyLevel,
       multiplier: this.multiplier,
-      roundIndex: this.roundIndex
+      roundTime: this.roundTime,
+      currentSport: this.currentSport,
+      nextSport: this.nextSport,
+      lastOutcome: this.lastOutcome,
+      roundsPlayed: this.roundsPlayed,
     };
-
-    return this.lastResult;
   }
 
-  prepareNextSport() {
-    const nextSportKey = this.getNextSportKey(this.currentSportKey);
-    this.currentSportKey = nextSportKey;
-    return nextSportKey;
+  setCurrentSport(sportKey) {
+    if (!isValidSportKey(sportKey)) {
+      return false;
+    }
+    this.currentSport = sportKey;
+    return true;
+  }
+
+  setNextSport(sportKey) {
+    if (!isValidSportKey(sportKey)) {
+      return false;
+    }
+    this.nextSport = sportKey;
+    return true;
+  }
+
+  getCurrentSport() {
+    return this.currentSport;
+  }
+
+  getNextSport() {
+    if (!this.nextSport || !isValidSportKey(this.nextSport)) {
+      this.nextSport = getRandomBaseSportKey();
+    }
+    return this.nextSport;
+  }
+
+  getMultiplier() {
+    return 1 + (this.difficultyLevel * 0.25);
+  }
+
+  refreshMultiplier() {
+    this.multiplier = this.getMultiplier();
+    return this.multiplier;
+  }
+
+  addScore(basePoints) {
+    const awarded = Math.round(basePoints * this.getMultiplier());
+    this.score += awarded;
+    this.refreshMultiplier();
+    return awarded;
+  }
+
+  loseLife(amount = 1) {
+    this.lives = Math.max(0, this.lives - amount);
+    return this.lives;
+  }
+
+  gainLife(amount = 1) {
+    this.lives += amount;
+    return this.lives;
+  }
+
+  setRoundTime(seconds) {
+    this.roundTime = seconds;
+    return this.roundTime;
+  }
+
+  startRound(sportKey, roundTime = 15) {
+    if (sportKey) {
+      this.setCurrentSport(sportKey);
+    }
+    this.setRoundTime(roundTime);
+    this.refreshMultiplier();
+    this.lastOutcome = null;
+    return this.getState();
+  }
+
+  completeRound({ outcome, baseScore = 100, nextSport = null } = {}) {
+    const didWin = outcome === 'win';
+    const didFail = outcome === 'fail';
+
+    if (!didWin && !didFail) {
+      return this.getState();
+    }
+
+    this.lastOutcome = outcome;
+    this.roundsPlayed += 1;
+
+    if (didWin) {
+      this.addScore(baseScore);
+      this.difficultyLevel += 1;
+    } else {
+      this.loseLife(1);
+    }
+
+    this.refreshMultiplier();
+
+    if (nextSport && isValidSportKey(nextSport)) {
+      this.nextSport = nextSport;
+    } else {
+      this.nextSport = getRandomBaseSportKey();
+    }
+
+    return this.getState();
   }
 
   isGameOver() {
     return this.lives <= 0;
   }
 
-  toJSON() {
-    return {
-      score: this.score,
-      lives: this.lives,
-      difficultyLevel: this.difficultyLevel,
-      currentSportKey: this.currentSportKey,
-      lastResult: this.lastResult,
-      multiplier: this.multiplier,
-      roundIndex: this.roundIndex
-    };
+  serialize() {
+    return this.getState();
+  }
+
+  hydrate(data = {}) {
+    if (typeof data.score === 'number') this.score = data.score;
+    if (typeof data.lives === 'number') this.lives = data.lives;
+    if (typeof data.difficultyLevel === 'number') this.difficultyLevel = data.difficultyLevel;
+    if (typeof data.roundTime === 'number') this.roundTime = data.roundTime;
+    if (typeof data.roundsPlayed === 'number') this.roundsPlayed = data.roundsPlayed;
+    if (typeof data.lastOutcome === 'string' || data.lastOutcome === null) this.lastOutcome = data.lastOutcome;
+    if (typeof data.currentSport === 'string' && isValidSportKey(data.currentSport)) this.currentSport = data.currentSport;
+    if (typeof data.nextSport === 'string' && isValidSportKey(data.nextSport)) {
+      this.nextSport = data.nextSport;
+    } else if (!this.nextSport) {
+      this.nextSport = getRandomBaseSportKey();
+    }
+    this.refreshMultiplier();
+    return this;
   }
 }
 

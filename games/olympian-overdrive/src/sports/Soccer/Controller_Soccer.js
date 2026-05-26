@@ -1,129 +1,165 @@
 import Phaser from 'phaser';
+import InputManager from '../../core/InputManager.js';
+
+const PLAYER_SPEED = 240;
+const STRIKE_RADIUS = 80;
+const STRIKE_BOX_SIZE = 48;
+const STRIKE_OFFSET = 8;
+const STRIKE_DURATION = 120;
+const PITCH_BOUNDS = {
+  left: 40,
+  right: 600,
+  top: 40,
+  bottom: 440
+};
 
 export default class Controller_Soccer {
-  constructor(scene, inputManager) {
+  constructor(scene) {
     this.scene = scene;
-    this.input = inputManager;
+    this.input = new InputManager(scene);
     this.player = null;
-    this.hitboxGroup = null;
-    this.activeHitbox = null;
-    this.strikeActive = false;
-    this.strikeDuration = 200;
-    this.playerSpeed = 240;
-    this.dashBoost = 200;
+    this.ball = null;
+    this.strikeHitbox = null;
     this.lastMoveDir = new Phaser.Math.Vector2(0, -1);
-    this.bounds = {
-      minX: 40,
-      maxX: 600,
-      minY: 40,
-      maxY: 440
+    this.strikeActive = false;
+  }
+
+  init(player, collisionGroups = {}) {
+    this.player = player;
+    this.ball = collisionGroups.ball || null;
+
+    this.strikeHitbox = this.scene.add.zone(player.x, player.y - STRIKE_OFFSET, STRIKE_BOX_SIZE, STRIKE_BOX_SIZE);
+    this.scene.physics.add.existing(this.strikeHitbox);
+    this.strikeHitbox.body.setAllowGravity(false);
+    this.strikeHitbox.body.setImmovable(true);
+    this.strikeHitbox.body.enable = false;
+
+    return {
+      strikeHitbox: this.strikeHitbox
     };
   }
 
-  init(player) {
-    this.player = player;
-    this.player.setCollideWorldBounds(false);
-
-    this.hitboxGroup = this.scene.physics.add.group({
-      classType: Phaser.Physics.Arcade.Sprite,
-      allowGravity: false
-    });
-
-    return this;
-  }
-
-  getHitbox() {
-    return this.hitboxGroup;
+  setBall(ball) {
+    this.ball = ball;
   }
 
   update() {
-    if (!this.player || !this.player.body) return;
-
-    const axisX = this.input.Axis_Horizontal();
-    const axisY = this.input.Axis_Vertical();
-
-    let velocityX = axisX * this.playerSpeed;
-    let velocityY = axisY * this.playerSpeed;
-
-    if (axisX !== 0 || axisY !== 0) {
-      this.lastMoveDir.set(axisX, axisY).normalize();
+    if (!this.player) {
+      return;
     }
 
-    this.player.setVelocity(velocityX, velocityY);
+    const horizontal = this.input.Axis_Horizontal();
+    const vertical = this.input.Axis_Vertical();
 
-    if (this.input.isStrikeJustPressed() && !this.strikeActive) {
-      this.startStrike();
+    this.player.setVelocity(horizontal * PLAYER_SPEED, vertical * PLAYER_SPEED);
+
+    if (horizontal !== 0 || vertical !== 0) {
+      this.lastMoveDir.set(horizontal, vertical).normalize();
     }
 
-    this.clampPlayerToPitch();
-    this.updateHitboxPosition();
+    this.enforceBounds();
+    this.updateStrikeHitboxPosition();
+
+    if (this.input.isStrikeJustPressed()) {
+      this.performStrike();
+    }
   }
 
-  startStrike() {
+  enforceBounds() {
+    const body = this.player.body;
+    if (!body) {
+      return;
+    }
+
+    if (this.player.x <= PITCH_BOUNDS.left && body.velocity.x < 0) {
+      body.setVelocityX(0);
+    }
+    if (this.player.x >= PITCH_BOUNDS.right && body.velocity.x > 0) {
+      body.setVelocityX(0);
+    }
+    if (this.player.y <= PITCH_BOUNDS.top && body.velocity.y < 0) {
+      body.setVelocityY(0);
+    }
+    if (this.player.y >= PITCH_BOUNDS.bottom && body.velocity.y > 0) {
+      body.setVelocityY(0);
+    }
+  }
+
+  updateStrikeHitboxPosition() {
+    if (!this.strikeHitbox) {
+      return;
+    }
+
+    const offsetX = this.lastMoveDir.x * STRIKE_OFFSET;
+    const offsetY = this.lastMoveDir.y * STRIKE_OFFSET;
+    this.strikeHitbox.setPosition(this.player.x + offsetX, this.player.y + offsetY);
+  }
+
+  performStrike() {
+    if (!this.player) {
+      return;
+    }
+
+    this.scene.gameFeel?.log('GF-02', 'strike fired', 'count=1');
+
+    this.scene.tweens.add({
+      targets: this.player,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      duration: 50,
+      yoyo: true,
+      ease: 'Quad.Out'
+    });
+
+    this.activateStrikeHitbox();
+    this.tryProximityKick();
+  }
+
+  activateStrikeHitbox() {
+    if (!this.strikeHitbox || this.strikeActive) {
+      return;
+    }
+
     this.strikeActive = true;
+    this.strikeHitbox.body.enable = true;
+    this.updateStrikeHitboxPosition();
 
-    const dashDir = this.lastMoveDir.lengthSq() > 0 ? this.lastMoveDir.clone().normalize() : new Phaser.Math.Vector2(0, -1);
-    this.player.setVelocity(
-      dashDir.x * (this.playerSpeed + this.dashBoost),
-      dashDir.y * (this.playerSpeed + this.dashBoost)
-    );
-
-    // Wider, closer hitbox so the strike reliably overlaps the ball at the edge.
-    const hitboxX = this.player.x + dashDir.x * 8;
-    const hitboxY = this.player.y + dashDir.y * 8;
-
-    this.activeHitbox = this.hitboxGroup.create(hitboxX, hitboxY, 'ball-soccer');
-    this.activeHitbox.setVisible(false);
-    this.activeHitbox.setActive(true);
-    this.activeHitbox.body.setAllowGravity(false);
-    this.activeHitbox.body.setSize(48, 48);
-    this.activeHitbox.body.setOffset(
-      (this.activeHitbox.width - 48) * 0.5,
-      (this.activeHitbox.height - 48) * 0.5
-    );
-    this.activeHitbox.setImmovable(true);
-
-    this.scene.time.delayedCall(this.strikeDuration, () => {
-      this.endStrike();
+    this.scene.time.delayedCall(STRIKE_DURATION, () => {
+      if (!this.strikeHitbox) {
+        return;
+      }
+      this.strikeHitbox.body.enable = false;
+      this.strikeActive = false;
     });
   }
 
-  endStrike() {
-    this.strikeActive = false;
-
-    if (this.activeHitbox) {
-      this.activeHitbox.destroy();
-      this.activeHitbox = null;
-    }
-  }
-
-  updateHitboxPosition() {
-    if (!this.activeHitbox || !this.player) return;
-
-    const dashDir = this.lastMoveDir.lengthSq() > 0 ? this.lastMoveDir.clone().normalize() : new Phaser.Math.Vector2(0, -1);
-    this.activeHitbox.setPosition(
-      this.player.x + dashDir.x * 18,
-      this.player.y + dashDir.y * 18
-    );
-  }
-
-  clampPlayerToPitch() {
-    const halfWidth = this.player.displayWidth * 0.5;
-    const halfHeight = this.player.displayHeight * 0.5;
-
-    this.player.x = Phaser.Math.Clamp(this.player.x, this.bounds.minX + halfWidth, this.bounds.maxX - halfWidth);
-    this.player.y = Phaser.Math.Clamp(this.player.y, this.bounds.minY + halfHeight, this.bounds.maxY - halfHeight);
-  }
-
-  destroy() {
-    this.endStrike();
-
-    if (this.hitboxGroup) {
-      this.hitboxGroup.clear(true, true);
-      this.hitboxGroup.destroy(true);
-      this.hitboxGroup = null;
+  tryProximityKick() {
+    if (!this.ball || !this.ball.body) {
+      return;
     }
 
-    this.player = null;
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.ball.x, this.ball.y);
+    if (distance > STRIKE_RADIUS) {
+      return;
+    }
+
+    let vx = this.ball.x - this.player.x;
+    if (Math.abs(vx) < 8) {
+      vx = vx >= 0 ? 8 : -8;
+    }
+
+    this.ball.setVelocity(vx * 4, -300 * 4);
+  }
+
+  getInput() {
+    return this.input;
+  }
+
+  getStrikeHitbox() {
+    return this.strikeHitbox;
+  }
+
+  getLastMoveDir() {
+    return this.lastMoveDir.clone();
   }
 }

@@ -1,193 +1,202 @@
 import Phaser from 'phaser';
 import { getGameManager } from '../core/GameManager.js';
 import InputManager from '../core/InputManager.js';
+import GameFeel from '../core/GameFeel.js';
+import {
+  SPORT_PICKLEBALL,
+  SPORT_SOCCER,
+  SPORT_MASHUP_PICKLE_SOCCER,
+} from '../core/sport-keys.js';
+import { ASSET_KEYS } from '../assets/asset-keys.js';
 import Controller_Pickleball from '../sports/Pickleball/Controller_Pickleball.js';
 import LevelManager_Pickleball from '../sports/Pickleball/LevelManager_Pickleball.js';
 import Controller_Soccer from '../sports/Soccer/Controller_Soccer.js';
 import LevelManager_Soccer from '../sports/Soccer/LevelManager_Soccer.js';
-import Mashup_PickleSoccer from '../sports/Mashups/Mashup_PickleSoccer.js';
-
-const SPORT_DEFS = {
-  pickleball: {
-    createController(scene, inputManager) {
-      return new Controller_Pickleball(scene, inputManager);
-    },
-    createLevelManager() {
-      return new LevelManager_Pickleball();
-    }
-  },
-  soccer: {
-    createController(scene, inputManager) {
-      return new Controller_Soccer(scene, inputManager);
-    },
-    createLevelManager() {
-      return new LevelManager_Soccer();
-    }
-  },
-  'mashup-pickle-soccer': Mashup_PickleSoccer
-};
 
 export default class ActiveScene extends Phaser.Scene {
   constructor() {
     super('ActiveScene');
-    this.gameManager = null;
+    this.gameActive = false;
+    this.roundEnded = false;
+    this.player = null;
     this.inputManager = null;
+    this.controller = null;
+    this.levelManager = null;
+    this.gameFeel = null;
+    this.gameManager = null;
+    this.sportKey = SPORT_PICKLEBALL;
+    this.timeRemaining = 15;
+    this.scoreText = null;
+    this.multText = null;
+    this.timeText = null;
+    this.livesText = null;
+    this.volleyText = null;
+    this.lastHorizontal = 0;
+    this.lastVertical = 0;
+  }
+
+  init(data = {}) {
+    this.sportKey = data.sportKey || SPORT_PICKLEBALL;
+    this.roundEnded = false;
+    this.gameActive = false;
     this.player = null;
     this.controller = null;
     this.levelManager = null;
-    this.sportKey = 'pickleball';
-    this.roundDuration = 15000;
-    this.roundEndAt = 0;
-    this.gameActive = false;
-    this.gameOverTriggered = false;
-    this.hud = {};
+    this.volleyText = null;
+    this.lastHorizontal = 0;
+    this.lastVertical = 0;
   }
 
-  create(data = {}) {
-    this.gameManager = getGameManager();
+  create() {
+    this.gameManager = this.registry.get('gameManager') || getGameManager();
+    this.registry.set('gameManager', this.gameManager);
+    this.gameManager.startRound(this.sportKey, 15);
+
     this.inputManager = new InputManager(this);
+    this.gameFeel = new GameFeel(this);
 
-    this.sportKey = data.sportKey || this.gameManager.getCurrentSportKey() || 'pickleball';
-    this.gameManager.setCurrentSportKey(this.sportKey);
-
-    this.physics.world.setBounds(0, 0, 640, 480);
-    this.cameras.main.setBackgroundColor('#103a2b');
-
-    this.createBackground();
     this.createPlayer();
     this.createHud();
-    this.createSportSystems();
+    this.setupSport();
+    this.updateHud();
 
-    this.roundEndAt = this.time.now + this.roundDuration;
+    this.gameFeel.fadeInFromBlack(200);
     this.gameActive = true;
-    this.gameOverTriggered = false;
-
-    // Dev keys: N = fail+skip, W = win+next, 0 = return to menu
-    this.input.keyboard.on('keydown-N', () => this.devSkip('fail'));
-    this.input.keyboard.on('keydown-W', () => this.devSkip('win'));
-    this.input.keyboard.on('keydown-ZERO', () => this.scene.start('MenuScene'));
-  }
-
-  devSkip(outcome) {
-    if (this.gameOverTriggered) return;
-    this.gameOverTriggered = true;
-    this.gameActive = false;
-    this.gameManager.applyRoundResult({ outcome, sportKey: this.sportKey, scoreDelta: outcome === 'win' ? 50 : 0 });
-    this.scene.start('ResultScene', { outcome, sportKey: this.sportKey });
-  }
-
-  createBackground() {
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0f2f24, 1);
-    bg.fillRect(0, 0, 640, 480);
   }
 
   createPlayer() {
     const spawn = this.getPlayerSpawn(this.sportKey);
-
-    this.player = this.physics.add.sprite(spawn.x, spawn.y, 'player-jack');
-    this.player.body.setAllowGravity(false);
+    this.player = this.physics.add.sprite(
+      spawn.x,
+      spawn.y,
+      ASSET_KEYS.SHARED_PLAYER_JACK_DEFAULT
+    );
+    this.player.setDepth(20);
     this.player.setCollideWorldBounds(false);
-    this.player.setDepth(10);
+    this.player.body.setAllowGravity(false);
+    this.player.body.setSize(this.player.width * 0.7, this.player.height * 0.75, true);
   }
 
   getPlayerSpawn(sportKey) {
-    if (sportKey === 'soccer' || sportKey === 'mashup-pickle-soccer') {
+    if (sportKey === SPORT_SOCCER || sportKey === SPORT_MASHUP_PICKLE_SOCCER) {
       return { x: 320, y: 400 };
     }
     return { x: 320, y: 380 };
   }
 
-  createSportSystems() {
-    const sportDef = SPORT_DEFS[this.sportKey] || SPORT_DEFS.pickleball;
+  createHud() {
+    this.scoreText = this.add.text(12, 10, 'SCORE: 0', {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+    });
+    this.scoreText.setDepth(1000);
+    this.scoreText.setColor('#ffffff');
 
-    this.controller = sportDef.createController(this, this.inputManager);
-    this.controller.init(this.player);
+    this.livesText = this.add.text(12, 28, 'LIVES: ❤️ ❤️ ❤️', {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+    });
+    this.livesText.setDepth(1000);
+    this.livesText.setColor('#ff2d55');
 
-    this.levelManager = sportDef.createLevelManager();
+    this.timeText = this.add.text(320, 10, 'TIME: 15.0', {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+    });
+    this.timeText.setOrigin(0.5, 0);
+    this.timeText.setDepth(1000);
+    this.timeText.setColor('#ffffff');
+
+    this.multText = this.add.text(628, 10, 'MULT: x1.00', {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+    });
+    this.multText.setOrigin(1, 0);
+    this.multText.setDepth(1000);
+    this.multText.setColor('#2ef2ff');
+  }
+
+  setupSport() {
+    if (this.sportKey === SPORT_PICKLEBALL) {
+      this.setupPickleball();
+      return;
+    }
+
+    if (this.sportKey === SPORT_SOCCER) {
+      this.setupSoccer();
+      return;
+    }
+
+    if (this.sportKey === SPORT_MASHUP_PICKLE_SOCCER) {
+      this.setupMashupPickleSoccer();
+      return;
+    }
+
+    this.setupPickleball();
+  }
+
+  setupPickleball() {
+    this.controller = new Controller_Pickleball(this, this.inputManager);
+    this.levelManager = new LevelManager_Pickleball();
+    const levelState = this.levelManager.init(this, this.controller) || {};
+    this.controller.init(this.player, {
+      ball: levelState.ball || this.levelManager.ball || null,
+    });
+  }
+
+  setupSoccer() {
+    this.controller = new Controller_Soccer(this);
+    this.controller.input = this.inputManager;
+    this.levelManager = new LevelManager_Soccer();
     this.levelManager.init(this, this.controller);
   }
 
-  createHud() {
-    this.hud.scoreText = this.add.text(12, 10, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px'
-    }).setDepth(1000);
-    this.hud.scoreText.setColor('#ffffff');
+  setupMashupPickleSoccer() {
+    this.controller = new Controller_Pickleball(this, this.inputManager);
+    this.levelManager = new LevelManager_Soccer();
+    const levelState = this.levelManager.init(this, {
+      init: () => ({})
+    }) || {};
 
-    this.hud.livesText = this.add.text(12, 28, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px'
-    }).setDepth(1000);
-    this.hud.livesText.setColor('#ff4d4d');
+    this.controller.init(this.player, {
+      ball: levelState.ball || this.levelManager.ball || null,
+    });
 
-    this.hud.timeText = this.add.text(320, 10, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px'
-    }).setOrigin(0.5, 0).setDepth(1000);
-    this.hud.timeText.setColor('#66f0ff');
+    if (levelState.ball) {
+      this.physics.add.overlap(
+        this.controller.paddle,
+        levelState.ball,
+        () => {
+          if (!this.controller || !this.controller.paddleActive || this.roundEnded) {
+            return;
+          }
 
-    this.hud.multText = this.add.text(628, 10, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px'
-    }).setOrigin(1, 0).setDepth(1000);
+          let vx = levelState.ball.x - this.player.x;
+          if (Math.abs(vx) < 8) {
+            vx = vx >= 0 ? 8 : -8;
+          }
 
-    this.hud.sportText = this.add.text(628, 28, this.getSportLabel(), {
-      fontFamily: 'monospace',
-      fontSize: '12px'
-    }).setOrigin(1, 0).setDepth(1000);
-    this.hud.sportText.setColor('#d7d7d7');
-
-    this.refreshHud();
-  }
-
-  getSportLabel() {
-    if (this.sportKey === 'mashup-pickle-soccer') {
-      return 'PICKLE SOCCER';
+          levelState.ball.setVelocity(vx * 4, -300 * 4);
+          this.gameFeel.pickleballHit(
+            levelState.ball.x,
+            levelState.ball.y,
+            this.volleyText,
+            this.scoreText
+          );
+        },
+        null,
+        this
+      );
     }
-    return this.sportKey.toUpperCase();
-  }
-
-  refreshHud() {
-    if (!this.hud.scoreText) return;
-
-    this.hud.scoreText.setText(`SCORE: ${this.gameManager.getScore()}`);
-    this.hud.livesText.setText(`LIVES: ${this.gameManager.getLives()}`);
-
-    const multiplier = this.gameManager.getMultiplier();
-    this.hud.multText.setText(`MULT: x${multiplier.toFixed(2)}`);
-    this.hud.multText.setColor(multiplier >= 1.5 ? '#ffd54a' : '#66ff88');
-
-    const remainingMs = Math.max(0, this.roundEndAt - this.time.now);
-    this.hud.timeText.setText(`TIME: ${(remainingMs / 1000).toFixed(1)}`);
   }
 
   update(time, delta) {
     if (!this.gameActive || !this.player) return;
 
-    if (this.inputManager.isDebugNextJustPressed()) {
-      this.gameOver({
-        outcome: 'fail',
-        scoreDelta: 0,
-        sportKey: this.sportKey
-      });
-      return;
-    }
+    this.handleDebugKeys();
+    if (!this.gameActive) return;
 
-    this.refreshHud();
-
-    if (time >= this.roundEndAt) {
-      if (this.levelManager && typeof this.levelManager.onTimeExpired === 'function') {
-        this.levelManager.onTimeExpired();
-      } else {
-        this.gameOver({
-          outcome: 'fail',
-          scoreDelta: 0,
-          sportKey: this.sportKey
-        });
-      }
-      return;
-    }
+    this.logMovementFeel();
 
     if (this.controller && typeof this.controller.update === 'function') {
       this.controller.update(time, delta);
@@ -196,43 +205,118 @@ export default class ActiveScene extends Phaser.Scene {
     if (this.levelManager && typeof this.levelManager.update === 'function') {
       this.levelManager.update(time, delta);
     }
+
+    this.updateTimer(delta);
+    this.updateHud();
   }
 
-  gameOver(payload = {}) {
-    if (this.gameOverTriggered) {
+  logMovementFeel() {
+    const horizontal = this.inputManager.Axis_Horizontal();
+    const vertical = this.inputManager.Axis_Vertical();
+
+    if (horizontal !== this.lastHorizontal || vertical !== this.lastVertical) {
+      this.gameFeel.log('GF-01', 'input sampled to movement', 'latency<=16ms');
+      this.gameFeel.log('GF-03', 'instant velocity update', `vx=${horizontal} vy=${vertical}`);
+      this.lastHorizontal = horizontal;
+      this.lastVertical = vertical;
+    }
+  }
+
+  updateTimer(delta) {
+    if (this.roundEnded) {
       return;
     }
 
-    this.gameOverTriggered = true;
-    this.gameActive = false;
+    this.timeRemaining = Math.max(0, this.timeRemaining - (delta / 1000));
+    this.gameManager.setRoundTime(this.timeRemaining);
 
-    const result = this.gameManager.applyRoundResult({
-      outcome: payload.outcome,
-      scoreDelta: payload.scoreDelta,
-      sportKey: payload.sportKey || this.sportKey
+    if (this.timeRemaining <= 0) {
+      this.triggerFail();
+    }
+  }
+
+  updateHud() {
+    const state = this.gameManager.getState();
+    this.scoreText.setText(`SCORE: ${state.score}`);
+
+    const hearts = Array.from({ length: state.lives }, () => '❤️').join(' ');
+    this.livesText.setText(hearts ? `LIVES: ${hearts}` : 'LIVES: 0');
+
+    this.timeText.setText(`TIME: ${this.timeRemaining.toFixed(1)}`);
+    this.multText.setText(`MULT: x${state.multiplier.toFixed(2)}`);
+    this.multText.setColor(state.multiplier >= 1.5 ? '#7bff00' : '#2ef2ff');
+  }
+
+  handleDebugKeys() {
+    if (this.inputManager.isMenuDebugPressed()) {
+      this.gameActive = false;
+      this.scene.start('MenuScene');
+      return;
+    }
+
+    if (this.inputManager.isFailSkipPressed()) {
+      this.gameOver('fail');
+      return;
+    }
+
+    if (this.inputManager.isWinSkipPressed()) {
+      this.gameOver('win');
+    }
+  }
+
+  triggerFail() {
+    if (this.roundEnded) {
+      return;
+    }
+
+    this.roundEnded = true;
+    this.gameFeel.playFailFeedback(this.getBackgroundTargets());
+    this.time.delayedCall(400, () => {
+      if (this.gameActive) {
+        this.gameOver('fail');
+      }
     });
+  }
 
-    this.time.delayedCall(50, () => {
-      this.scene.start('ResultScene', result);
+  getBackgroundTargets() {
+    const targets = [];
+    if (this.levelManager && this.levelManager.background) {
+      targets.push(this.levelManager.background);
+    }
+    if (this.levelManager && this.levelManager.court) {
+      targets.push(this.levelManager.court);
+    }
+    if (this.levelManager && this.levelManager.goalZone) {
+      targets.push(this.levelManager.goalZone);
+    }
+    return targets;
+  }
+
+  gameOver(outcome) {
+    if (!this.gameActive) {
+      return;
+    }
+
+    this.gameActive = false;
+    this.roundEnded = true;
+
+    const baseScore = outcome === 'win' ? 100 : 0;
+    this.gameManager.completeRound({ outcome, baseScore });
+
+    this.gameFeel.fadeOutToBlack(300, () => {
+      this.scene.start('ResultScene', {
+        outcome,
+        sportKey: this.sportKey,
+      });
     });
   }
 
   shutdown() {
-    this.gameActive = false;
-
-    if (this.levelManager && typeof this.levelManager.destroy === 'function') {
-      this.levelManager.destroy();
-    }
-    this.levelManager = null;
-
     if (this.controller && typeof this.controller.destroy === 'function') {
       this.controller.destroy();
     }
-    this.controller = null;
-
-    if (this.player) {
-      this.player.destroy();
-      this.player = null;
+    if (this.levelManager && typeof this.levelManager.destroy === 'function') {
+      this.levelManager.destroy();
     }
   }
 

@@ -47,3 +47,7 @@ shared/_originals/
 # Kenney Asset Launcher (if extracted anywhere inside the repo)
 *Kenney Game Assets Launcher*/
 *Kenney*Launcher*/
+
+# Build provenance artifacts (per-game; useful locally, noisy in git)
+games/*/.build-log.txt
+games/*/.build-start.txt

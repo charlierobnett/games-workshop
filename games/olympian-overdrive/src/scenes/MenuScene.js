@@ -1,24 +1,38 @@
 import Phaser from 'phaser';
-import { getGameManager } from '../core/GameManager.js';
+import InputManager from '../core/InputManager.js';
+import {
+  SPORT_PICKLEBALL,
+  SPORT_SOCCER,
+  SPORT_MASHUP_PICKLE_SOCCER
+} from '../core/sport-keys.js';
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
     super('MenuScene');
+    this.inputManager = null;
+    this.starting = false;
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#10182a');
+    this.inputManager = new InputManager(this);
+    this.starting = false;
 
-    const gameManager = getGameManager();
-    this.game.registry.set('gameManager', gameManager);
+    this.events.on('wake', () => {
+      this.starting = false;
+    });
 
-    const { width, height } = this.scale;
+    this.events.on('resume', () => {
+      this.starting = false;
+    });
 
-    this.add.rectangle(width * 0.5, height * 0.5, width, height, 0x10182a);
-    this.add.rectangle(width * 0.5, 110, 520, 90, 0x1d2d50, 0.95).setStrokeStyle(4, 0x4cc9f0);
-    this.add.rectangle(width * 0.5, 275, 540, 180, 0x16213e, 0.95).setStrokeStyle(3, 0xf4d35e);
+    this.cameras.main.setBackgroundColor('#103a2b');
 
-    const title = this.add.text(width * 0.5, 90, 'OLYMPIAN OVERDRIVE', {
+    this.add.rectangle(320, 240, 640, 480, 0x103a2b);
+
+    const panel = this.add.rectangle(320, 240, 560, 360, 0x163f31, 0.9);
+    panel.setStrokeStyle(4, 0x2ef2ff, 0.7);
+
+    const title = this.add.text(320, 90, 'OLYMPIAN OVERDRIVE', {
       fontFamily: 'monospace',
       fontSize: '28px',
       fontStyle: 'bold',
@@ -26,130 +40,97 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     title.setColor('#ffffff');
 
-    const subtitle = this.add.text(width * 0.5, 125, 'Top-Down Sports Micro-Game Slice', {
+    const subtitle = this.add.text(320, 126, 'Mega-Decathlon Micro-Game Gauntlet', {
       fontFamily: 'monospace',
-      fontSize: '14px',
+      fontSize: '12px',
       align: 'center'
     }).setOrigin(0.5);
-    subtitle.setColor('#4cc9f0');
+    subtitle.setColor('#2ef2ff');
 
-    const instructions = this.add.text(
-      width * 0.5,
-      240,
-      [
-        'SPACE: START RUN',
-        'M: DEBUG MASH-UP',
-        '',
-        'MOVE: ARROW KEYS',
-        'Z: JUMP / RESERVED',
-        'X: STRIKE / SWING'
-      ].join('\n'),
-      {
-        fontFamily: 'monospace',
-        fontSize: '18px',
-        align: 'center',
-        lineSpacing: 8
-      }
-    ).setOrigin(0.5);
-    instructions.setColor('#ffffff');
+    const instructions = [
+      'MOVE: ARROW KEYS',
+      'STRIKE: X',
+      'START: SPACE',
+      '',
+      'PICKLEBALL: 3 VOLLEYS TO WIN',
+      'SOCCER: SCORE 1 GOAL TO WIN',
+      '',
+      'DEBUG: 1 PICKLEBALL   2 SOCCER   3 OR M MASH-UP',
+      'DEBUG: 0 MENU   N FAIL-SKIP   W WIN-SKIP'
+    ].join('\n');
 
-    const footer = this.add.text(
-      width * 0.5,
-      410,
-      '15s rounds • random sport rotation • 3 lives',
-      {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        align: 'center'
-      }
-    ).setOrigin(0.5);
-    footer.setColor('#f4d35e');
+    const body = this.add.text(320, 220, instructions, {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      align: 'center',
+      lineSpacing: 8
+    }).setOrigin(0.5);
+    body.setColor('#ffffff');
 
-    this.promptText = this.add.text(width * 0.5, 405, 'PRESS SPACE TO BEGIN', {
+    const prompt = this.add.text(320, 390, 'PRESS SPACE TO START', {
       fontFamily: 'monospace',
       fontSize: '18px',
       fontStyle: 'bold',
       align: 'center'
     }).setOrigin(0.5);
-    this.promptText.setColor('#7cff6b');
-
-    // Dev mode panel — jump directly to a sport or scene
-    this.add.text(width * 0.5, 442, '— DEV MODE —', {
-      fontFamily: 'monospace', fontSize: '11px', align: 'center'
-    }).setOrigin(0.5).setColor('#888888');
-
-    this.add.text(width * 0.5, 460,
-      '1: Pickleball   2: Soccer   3: Mash-Up   N: Skip (in-game)',
-      { fontFamily: 'monospace', fontSize: '11px', align: 'center' }
-    ).setOrigin(0.5).setColor('#aaaaaa');
+    prompt.setColor('#7bff00');
 
     this.tweens.add({
-      targets: this.promptText,
-      alpha: 0.25,
-      duration: 550,
+      targets: prompt,
+      alpha: 0.35,
+      duration: 500,
       yoyo: true,
       repeat: -1
     });
 
-    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.mKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    this.devKeys = {
-      one: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
-      two: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
-      three: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE)
-    };
-    this.starting = false;
+    const footer = this.add.text(320, 445, 'TOP-DOWN SPORTS ONLY · 15 SECOND ROUNDS', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      align: 'center'
+    }).setOrigin(0.5);
+    footer.setColor('#b8c7c2');
+  }
 
-    // Defensive: if we ever wake up from a crashed scene, unlock inputs.
-    this.events.on('wake', () => { this.starting = false; });
-    this.events.on('resume', () => { this.starting = false; });
+  startSport(sportKey) {
+    if (this.starting) {
+      return;
+    }
+
+    this.starting = true;
+    this.registry.set('currentSportKey', sportKey);
+
+    this.cameras.main.fadeOut(200, 0, 0, 0);
+    this.time.delayedCall(200, () => {
+      this.scene.start('ActiveScene', { sportKey });
+    });
   }
 
   update() {
-    // Dev keys ALWAYS available — never gated by starting flag.
-    // If a previous transition crashed, these are the unlock.
-    if (Phaser.Input.Keyboard.JustDown(this.devKeys.one)) {
-      this.starting = false;
-      this.jumpToSport('pickleball');
-      return;
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.devKeys.two)) {
-      this.starting = false;
-      this.jumpToSport('soccer');
-      return;
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.devKeys.three) || Phaser.Input.Keyboard.JustDown(this.mKey)) {
-      this.starting = false;
-      this.startMashupRun();
+    if (!this.inputManager) {
       return;
     }
 
-    if (this.starting) return;
-
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-      this.startStandardRun();
+    if (this.inputManager.isPickleballDebugPressed()) {
+      this.startSport(SPORT_PICKLEBALL);
+      return;
     }
-  }
 
-  jumpToSport(sportKey) {
-    this.starting = true;
-    const gameManager = getGameManager();
-    gameManager.startNewRun(sportKey);
-    this.scene.start('ActiveScene', { sportKey });
-  }
+    if (this.inputManager.isSoccerDebugPressed()) {
+      this.startSport(SPORT_SOCCER);
+      return;
+    }
 
-  startStandardRun() {
-    this.starting = true;
-    const gameManager = getGameManager();
-    const sportKey = gameManager.startNewRun();
-    this.scene.start('ActiveScene', { sportKey });
-  }
+    if (this.inputManager.isMashupDebugPressed()) {
+      this.startSport(SPORT_MASHUP_PICKLE_SOCCER);
+      return;
+    }
 
-  startMashupRun() {
-    this.starting = true;
-    const gameManager = getGameManager();
-    gameManager.startNewRun('mashup-pickle-soccer');
-    gameManager.setCurrentSportKey('mashup-pickle-soccer');
-    this.scene.start('ActiveScene', { sportKey: 'mashup-pickle-soccer' });
+    if (this.starting) {
+      return;
+    }
+
+    if (this.inputManager.isStartJustPressed()) {
+      this.startSport(SPORT_PICKLEBALL);
+    }
   }
 }
