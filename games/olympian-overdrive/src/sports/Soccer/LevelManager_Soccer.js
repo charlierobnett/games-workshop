@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import GameFeel from '../../core/GameFeel';
-import { ASSET_KEYS } from '../../assets/asset-keys';
+import GameFeel from '../../core/GameFeel.js';
+import { ASSET_KEYS } from '../../assets/asset-keys.js';
 
 export default class LevelManager_Soccer {
   constructor() {

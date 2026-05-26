@@ -51,3 +51,4 @@ shared/_originals/
 # Build provenance artifacts (per-game; useful locally, noisy in git)
 games/*/.build-log.txt
 games/*/.build-start.txt
+games/*/.review-report.json
