@@ -1,0 +1,14 @@
+{
+  "name": "games-workshop-tools",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared tooling for AI-generated Phaser game pipeline — build-game.js, review-game.js, playtest-game.js, etc. Individual games live in games/<name>/ with their own package.json.",
+  "scripts": {
+    "review": "node scripts/review-game.js",
+    "playtest": "node scripts/playtest-game.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

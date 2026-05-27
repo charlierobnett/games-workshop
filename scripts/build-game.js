@@ -199,7 +199,7 @@ Additional rules:
 - Use ES modules.
 - Phaser version: ^3.80.0 in package.json.
 - Vite version: ^5.0.0 in package.json.
-- For src/main.js: register all scenes from the manifest in order (Boot first).
+- For src/main.js: register all scenes from the manifest in order (Boot first). Capture the Phaser.Game instance as \`const game = new Phaser.Game(config)\` (not anonymous). At the end of main.js, expose the game globally ONLY when \`?playtest=1\` is present in the URL — this is the playtest hook that lets scripts/playtest-game.js introspect scene state. Use this exact pattern:\n  \`if (new URLSearchParams(window.location.search).get('playtest') === '1') { window.game = game; }\`\n  No-op for normal play; required for headless runtime smoke tests.
 - For index.html: minimal, points to /src/main.js with type="module".
 - For scene files: export default class extending Phaser.Scene, constructor calls super(sceneKey).
 - For Controllers: export a class or factory that attaches input handlers and exposes hitboxes/state to its LevelManager.

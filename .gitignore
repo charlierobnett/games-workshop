@@ -52,3 +52,4 @@ shared/_originals/
 games/*/.build-log.txt
 games/*/.build-start.txt
 games/*/.review-report.json
+games/*/.playtest-report.json

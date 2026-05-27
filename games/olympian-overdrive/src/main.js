@@ -35,4 +35,11 @@ const config = {
   },
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Playtest hook: expose game instance globally only when ?playtest=1.
+// Allows scripts/playtest-game.js (headless Phaser smoke test) to introspect
+// scene state. No-op for normal play.
+if (new URLSearchParams(window.location.search).get('playtest') === '1') {
+  window.game = game;
+}
