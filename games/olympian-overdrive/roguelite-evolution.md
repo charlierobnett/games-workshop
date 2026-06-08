@@ -1,6 +1,6 @@
 # Olympian Overdrive — Roguelite Evolution: Design Direction
 
-**Status:** design exploration → toward spec v4 / M2. NOT yet a build spec.
+**Status:** **design LOCKED (structure) — 2026-06-07** → spec v4 pending a balance-numbers research pass. NOT yet a build spec. See **"Locked decisions (2026-06-07)"** below; the per-layer "to pin down / think through" subsections survive as the research brief for the numbers.
 **Date:** 2026-05-31
 **Provenance:** Gemini Deep Research → Azure GPT-5.4 synthesis (2026-05-31) + a design conversation (Charlie ↔ Hobbes, 2026-05-31). Full research + synthesis: `AI-OS/05_LOGS/pushes/2026-05-31-roguelite-sports-career-ladder.md`.
 **Supersedes:** the synthesis's *win-gated* tier model — replaced by the Constant-Learning progression model below. Everything else from the synthesis composes underneath (see §"What survives").
@@ -15,6 +15,28 @@
 This is a playable expression of the "collapse time to expertise" thesis: **losses are the fuel, mastery is the gate, growth compounds.** You stay at a level until you've *learned enough* — not until you've won enough. The original "lose often early" framing is explicitly rejected; so is win-based progression.
 
 Anti-frustration mandate carries over and *extends*: alongside `DI-07` (variety not tightness) and `DI-08` (no single-input instant-fail), add **DI-09 (new): never let the player feel stuck without seeing both WHY and that they're progressing.** Learning must be legible and almost-always-advancing.
+
+---
+
+## Locked decisions (2026-06-07)
+
+The **structural direction is locked** (4 forks ratified with Charlie + the structural calls below). **Balance numbers are deliberately NOT locked** — they route to a games-design research pass (see *Research-gated* below), because `ai-generated-game-code-patterns.md` is explicit that our AI build pipeline cannot calibrate balance or feel. Each layer's "to pin down / think through" subsection survives as the **research brief** for those numbers.
+
+**Three system layers:** **L1 Progression · L2 Edge · L3 Overdrive.** Core sports = the foundation the layers sit on; narrative = a frame, not a system layer. *(DP9 — ratified)*
+
+**L1 — Progression:** Respect growth is **challenge-weighted** (a close loss vs a higher tier > an easy win vs a lower tier); Mastery is a **consistency threshold** (demonstrate a competency *N times reliably*, never a single success). The tryout = Respect invites, Mastery passes; a failed tryout is a **diagnostic** that routes to the development tournament teaching the missing competency. `[curve weighting + N → RESEARCH-GATED]`
+
+**L2 — Edge:** **one data-driven, tag-based item schema, two tiers** via a `source`/`rarity` field — `draft` (common run-floor) vs `overdrive` (premium, rule-bending). **Gear** = run-scoped rule-changing verbs; **Skills** = **permanent technique unlocks that become demonstrable Mastery competencies** (edge feeds the L1 learning loop). Never `+%` stat bumps; never shrink hitboxes / inflate AI speed (DI-07). **Slice pool ~6–10 items.** *(DP3/DP4 — ratified)* `[pool-for-variety minimum → RESEARCH-GATED]`
+
+**L3 — Overdrive:** **per-tier boss-equivalent** for the first build (telegraphed, climactic, predictable; random interrupts deferred to v1.1). Chaos via **fusion/variety**, never tightness (DI-07); one new wrinkle at a time (DI-06); telegraphed (DI-08). **The one place winning matters** + the source of premium gear/skills; **losing Overdrive = no premium reward, never a run-ender.** *(DP7 — ratified)* `[cadence/frequency → RESEARCH-GATED]`
+
+**Story:** direction locked, **exploratory/non-blocking** — knocked-off-Olympus → climb back; "rise via repeated *learning*" vs Hades' "escape via *death*."
+
+### Smallest playable slice — first build + architecture-spike target
+One tier (**JV → Varsity**): 1 development tournament (Mastery lane), 1 prestige tournament (Respect lane), the **tryout gate as diagnostic**, ~6–8 edge items, 1 Overdrive boss. It exists to prove the only question that matters after a core restructure: **does the failure-loop feel like learning, not punishment?** (North Star + DI-09.)
+
+### Research-gated — route to a games-design sprint, do NOT fake-precision
+Numbers to set *before* spec v4: Respect challenge-weighting curve (12–14 motivation), Mastery `N` + what "reliably" means, Overdrive cadence/frequency, pool-for-variety minimum, microgame readability. Sprint: **`roguelite-meta-progression-for-tweens`** (the never-run games-design sprint, HOBBES_BACKLOG 2026-05-24). Then author **spec v4** (RS / MP / EQ / PG / OD), splitting *behavioral intent* (locked now) from *literal numbers* (filled from research).
 
 ---
 
@@ -71,14 +93,10 @@ Occasionally during the mastery journey, the **gods try to slow you down**: an *
 
 ---
 
-## Layer 3 — TBD  *(the "third layer" — name it next)*
+## Layer 3 — The Overdrive layer  *(LOCKED 2026-06-07)*
 
-Charlie flagged a third layer to think through beyond Progression (L1) and Equipment/Edge (L2). Candidates, unresolved:
-- The **Overdrive system** as its own distinct layer (the chaos/divine-opportunity layer), OR
-- The **narrative / story** layer, OR
-- The **core sports-gameplay** layer (the microgames themselves) as the foundation the other two sit on.
+**Decided (2026-06-07):** the third system layer is the **Overdrive layer** — the divine-chaos / opportunity system. The three system layers are **L1 Progression · L2 Edge · L3 Overdrive.** The **core sports-gameplay** is the *foundation* the three layers sit on (not itself a progression layer); the **narrative / story** is a *frame*, not a system. The Overdrive layer earns the slot — it's the win-counterpoint to L1's learning loop and the source of premium edge (see the Overdrive section above).
 
-Leave open. Likely the Overdrive layer earns "third layer" status given how central it's becoming.
 
 ---
 
@@ -109,10 +127,38 @@ The one-line distinction: **"escape via repeated death" vs "rise via repeated le
 
 ---
 
-## Open think-items (carry to next sessions)
-1. **Lock Layer 1 details** — Respect growth weighting; Mastery demonstration thresholds.
-2. **Design Layer 2** — baseline vs Overdrive-won edge; gear vs special skills.
-3. **Name + define Layer 3.**
-4. **Design the Overdrive mechanic** — cadence, structure, difficulty (DI-compliant).
-5. **Evolve the story** — keep it fresh vs Hades; don't get stuck.
-6. **Translate to spec v4** — author RS / MP / EQ / PG / OD contracts in the GF-/DI-/VI- verifiable-rule style; scope the smallest playable slice.
+## Open think-items — status after the 2026-06-07 lock
+1. **Layer 1 details** — structure LOCKED (challenge-weighted Respect; consistency-threshold Mastery). Numbers `[RESEARCH-GATED]` → `AI-OS/05_LOGS/pushes/2026-06-07-roguelite-meta-progression-for-tweens.md`.
+2. **Layer 2 edge** — LOCKED (one schema / two tiers; gear = run-scoped, skills = permanent Mastery unlocks). Pool-for-variety minimum `[RESEARCH-GATED]`.
+3. **Layer 3** — LOCKED = the Overdrive layer.
+4. **Overdrive mechanic** — LOCKED (per-tier boss, telegraphed, fusion-not-tightness). Cadence/frequency `[RESEARCH-GATED]`.
+5. **Story** — direction locked, exploratory / non-blocking.
+6. **Spec v4** — author RS / MP / EQ / PG / OD after the numbers research returns; split behavioral intent (locked) from literal numbers (from research).
+
+---
+
+## Recovered build-critical detail (2026-06-07, via `extract.js`)
+
+The Azure synthesis over-compressed the research's build payload. `extract.js` recovered it (verbatim-verified against the raw). This block is the **build's source of truth** for spec v4 — both the synthesis's deliberate design calls AND the raw originals it altered/dropped, so the per-parameter call is made with full information.
+
+**⚠ One OPEN decision — meta-progression model (Charlie's call):** the synthesis silently swapped the raw's **percentage** model for a **token** model whose numbers don't match the intent. Pick one before authoring the PG contract:
+- **Raw (percentage, self-normalizing):** R1 wipe = **15%** of next unlock; final-round loss = **85%**; full win = **120%** (1 unlock + 20% rollover). Deciding variable: rounds survived.
+- **Synthesis (token, absolute):** stipend 10 + 8/round; unlock costs 20/40/60/80 → computes to R1 wipe ≈50%, final loss ≈112%, win ≈137% (2–3× more generous than intended, stage-dependent).
+
+**Altered tuning constants — reconcile per-parameter (raw → synthesis revision):**
+| Parameter | Raw original | Synthesis revision | Note |
+|---|---|---|---|
+| Standard loss reward | 50% of win | 60% | synthesis more generous (North Star: losses are fuel) — defensible |
+| Close loss reward | 65–75% | 80% | synthesis more generous — defensible |
+| Close-loss trigger | final **10%** of timer OR lose by 1 | final **20%** OR lose by 1 OR 80% objective | dial choice |
+| Challenge multiplier | linear **0.8×–1.3×** | 3-step **0.9/1.0/1.2** | synthesis rejected 1.3× as failure-farmable — **keep synthesis** |
+| Item pool (tier 1) | **20–24**, **3** synergy tags | **10**, **2** tags | synthesis right that 24 over-scopes solo; but see C(n,k) below — likely land **~12–14 / 3 tags** |
+| Instruction display | **1.0s**, 1 word | **0.8s**, ≤12 chars | synthesis trimmed for snappiness — may hurt the 12yo's readability; revisit in playtest |
+| Result freeze | **0.5s** | **0.35s** | same trim caveat |
+
+**Dropped build payload — preserve verbatim (the synthesis lost these entirely):**
+- **Combinatorics framework (EQ sizing tool):** build variety = `C(n,k)`. `C(24,3) = 2,024` unique builds; `C(24,4) = 10,626` (the real reason to cap **max active = 3**). Over-scoping cliff = hard-coded logic exceptions for item *pairings*, not raw count.
+- **Core data model (the most build-actionable line):** `Respect` = a simple **cumulative integer**; `Mastery` syllabus = strictly a **1-D boolean array** (True/False per skill); **no decay**, no multi-tier. Mastery gate evaluates a **rolling array of size 4** of binary outcomes (3-of-4). Tryout = a **boolean success/fail array** of 3 pre-determined microgames; fail → highlight skill icon red; **zero dynamic text**.
+- **Game-feel audio (GF contract):** win = **high-frequency major-chord** chime; loss = **low-frequency descending minor-chord**; full-screen high-contrast stamp; player char in **saturated primary** color, backgrounds **desaturated/darkened**; "**failure must be energetic/comical**" (core to the anti-frustration mandate).
+
+**Evidence:** full raw research + the 31 recovered citations live in `AI-OS/05_LOGS/pushes/2026-06-07-roguelite-meta-progression-for-tweens.md` (the evidence vault). Frameworks: Bayesian Knowledge Tracing (the 3-of-4 rationale), prospect-theory 2:1 loss aversion (loss rewards), hyperbolic discounting (front-loaded curve), WarioWare 4–8-beat (microgame readability).
