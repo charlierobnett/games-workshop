@@ -48,6 +48,11 @@ const HOUSE_RULES = `
 19. BootScene must preload all declared asset keys by iterating the canonical manifest. Do not hand-type preload keys inline.
 20. If uncertain about a key name, stop and use the manifest as the source of truth. Never paraphrase or normalize asset names.
 
+# Scene Lifecycle (Round 3 — cross-build ratchet, recovered 2026-06-07)
+
+21. Every scene keeps a \`_disposers[]\` array, registers all external listeners/timers through it, and flushes them on \`Phaser.Scenes.Events.SHUTDOWN\`. No naked \`setInterval\` (use Phaser timers). Registry-listener duplication across N scene transitions makes one event fire N times — this is the bug class.
+22. View / encounter transitions use pause/sleep/wake, NOT teardown + rebuild. To switch view context or pause for an encounter, \`sleep\` the scene (halts update + WebGL render, keeps allocations) and restore with \`wake\` — so procedural/generated state is never reallocated on return. Use \`pause\` when render state must stay visible. Never \`stop()\`+\`start()\` a scene whose generated state must persist.
+
 # Spec Fidelity Awareness (Round 2)
 
 Some spec contracts have lower natural fidelity than others. Pay EXTRA attention to:

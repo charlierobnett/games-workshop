@@ -133,7 +133,7 @@ The one-line distinction: **"escape via repeated death" vs "rise via repeated le
 3. **Layer 3** — LOCKED = the Overdrive layer.
 4. **Overdrive mechanic** — LOCKED (per-tier boss, telegraphed, fusion-not-tightness). Cadence/frequency `[RESEARCH-GATED]`.
 5. **Story** — direction locked, exploratory / non-blocking.
-6. **Spec v4** — author RS / MP / EQ / PG / OD after the numbers research returns; split behavioral intent (locked) from literal numbers (from research).
+6. **Spec v4** — ✅ AUTHORED 2026-06-07 in [`spec.md`](spec.md) (v4): RS / MP / EQ / PG / OD + GF-Audio contracts, behavioral intent locked, literal numbers tagged `[PLAYTEST-GATED]`/`[RESEARCH-GATED]`, generation gated behind the architecture spike (§7). Architecture locks added to spec Locked Decisions (#11-18); House Rules 20-21 added (rule 21 dual-written to `build-game.js`). Remaining: run the spike, then fill the gated numbers via the smallest-slice playtest.
 
 ---
 
@@ -141,9 +141,9 @@ The one-line distinction: **"escape via repeated death" vs "rise via repeated le
 
 The Azure synthesis over-compressed the research's build payload. `extract.js` recovered it (verbatim-verified against the raw). This block is the **build's source of truth** for spec v4 — both the synthesis's deliberate design calls AND the raw originals it altered/dropped, so the per-parameter call is made with full information.
 
-**⚠ One OPEN decision — meta-progression model (Charlie's call):** the synthesis silently swapped the raw's **percentage** model for a **token** model whose numbers don't match the intent. Pick one before authoring the PG contract:
-- **Raw (percentage, self-normalizing):** R1 wipe = **15%** of next unlock; final-round loss = **85%**; full win = **120%** (1 unlock + 20% rollover). Deciding variable: rounds survived.
-- **Synthesis (token, absolute):** stipend 10 + 8/round; unlock costs 20/40/60/80 → computes to R1 wipe ≈50%, final loss ≈112%, win ≈137% (2–3× more generous than intended, stage-dependent).
+**✅ RESOLVED 2026-06-07 — meta-progression model = percentage intent, token display.** The synthesis had silently swapped the raw's **percentage** model for a **token** model whose numbers ran 2–3× generous, stage-dependently. **Decision (Charlie):** compute every run's permanent-currency reward on the **percentage curve** (preserves the intended pacing — the deciding variable is rounds survived), but **surface it to the player as whole shard tokens** (legibility for a 12yo: "I have 34 shards"). Designer tunes in %; player sees concrete numbers; a thin display-conversion layer bridges them.
+- **Curve (the % intent to encode):** R1 wipe = **15%** of next unlock; final-round loss = **85%**; full win = **120%** (1 unlock + 20% rollover). Deciding variable: rounds survived.
+- **Reject** the raw token numbers (stipend 10 + 8/round; costs 20/40/60/80 → R1 wipe ≈50%, final loss ≈112%, win ≈137%) as the *source of truth*; they may still seed the initial display-token costs, but the **reward math derives from the % curve**, not from flat per-round stipends.
 
 **Altered tuning constants — reconcile per-parameter (raw → synthesis revision):**
 | Parameter | Raw original | Synthesis revision | Note |
@@ -160,5 +160,24 @@ The Azure synthesis over-compressed the research's build payload. `extract.js` r
 - **Combinatorics framework (EQ sizing tool):** build variety = `C(n,k)`. `C(24,3) = 2,024` unique builds; `C(24,4) = 10,626` (the real reason to cap **max active = 3**). Over-scoping cliff = hard-coded logic exceptions for item *pairings*, not raw count.
 - **Core data model (the most build-actionable line):** `Respect` = a simple **cumulative integer**; `Mastery` syllabus = strictly a **1-D boolean array** (True/False per skill); **no decay**, no multi-tier. Mastery gate evaluates a **rolling array of size 4** of binary outcomes (3-of-4). Tryout = a **boolean success/fail array** of 3 pre-determined microgames; fail → highlight skill icon red; **zero dynamic text**.
 - **Game-feel audio (GF contract):** win = **high-frequency major-chord** chime; loss = **low-frequency descending minor-chord**; full-screen high-contrast stamp; player char in **saturated primary** color, backgrounds **desaturated/darkened**; "**failure must be energetic/comical**" (core to the anti-frustration mandate).
+
+---
+
+### Second-pass recoveries (2026-06-07 re-review of the career-ladder + architecture logs, via `extract.js`)
+
+The targeted re-review ran `extract.js` over four past game logs (70 deltas, **100% verbatim — zero hallucinations**; 2 conservatively-flagged items both confirmed faithful on human read). Most career-ladder detail was already reconciled in the block above; these are the **new** spec-relevant recoveries, with decisions made:
+
+**MP contract — restored / decided:**
+- **Minimum payout floor (RESTORED — synthesis dropped it):** a failed run must still award **>= the cost of the cheapest permanent-upgrade node** (raw worked example: cheapest locker-room node = 50 -> a Match-1 failure still awards >=50). This is the concrete teeth behind the "losses are fuel" North Star — without it an early wipe nets ~zero and the loop *feels* like punishment. Encode in MP.
+- **Momentum assist = continuous `floor(F/2)` + cap (DECIDED):** effective run-lives = `base + min(floor(F/2), 3)`, where `F` = consecutive failures in the current tier (+1 life per 2 failures, accumulating, capped at +3). Restores the raw's continuously-scaling subtractive-difficulty intent (raw MP-03 / lines 221-235); the synthesis had softened it to a one-time nudge. Cap prevents trivializing a tier for a persistently-stuck player.
+- **Run architecture = split (DECIDED):** author **RS** with **3 matches x 4/5/6 escalating rounds ~= 15 rounds, 7-10 min**, structure `Match -> Draft -> Match -> Boss`. Behavioral intent locked; the literal round-count is **playtest-gated** (the 12yo sets the final number). This deliberately lands between the raw's ~18 rounds / 8-12 min (risks overshooting tween session tolerance) and the synthesis's ~9-11 / 6-9 min.
+
+**EQ contract — restored:**
+- **Orthogonality contract (RESTORED — synthesis dropped it):** no two items in the pool may share the same functional logic. This is the design teeth behind the `C(n,k)` variety math above — orthogonal items make `C(n,3)` *meaningful* combinations rather than redundant ones. Encode in EQ alongside the pool-size cap.
+
+**Architecture context (route to a build-architecture note, not a design contract):**
+- **View-transition contract (pause / sleep / wake):** top-down <-> side-scroller / encounter transitions should **pause or sleep** the `TopDownView` scene and restore via **wake** — *not* tear down and rebuild — so the procedural map is **not reallocated/regenerated** on return. (`pause` retains render state; `sleep` halts update + WebGL render while keeping allocations; `wake` restores instantly.) Matters because Olympian's hybrid/mash-up architecture switches views mid-run. The synthesis's numeric "alterations" (sidescroller gravity 1200->1400; camera lerp/deadzone) are **tuning presets** set at build/playtest — note, don't lock.
+
+**Tooling recoveries (gba-review + phaser-playtest logs)** route to the playtest-harness build, **not** this spec — banked in HOBBES_BACKLOG. Key items: Chromium GPU launch flags, Matter.js fixed-step (`isFixed:true`, clamp 16-33ms), manual `16.666ms` deterministic stepping, RNG seed contract, Phaser scene-state `0-9` mapping, audio-interception patch points, CPU-throttle perf gate (4x / <55 FPS), and the self-healing iteration cap (**raw: 3, not the synthesis's 2**).
 
 **Evidence:** full raw research + the 31 recovered citations live in `AI-OS/05_LOGS/pushes/2026-06-07-roguelite-meta-progression-for-tweens.md` (the evidence vault). Frameworks: Bayesian Knowledge Tracing (the 3-of-4 rationale), prospect-theory 2:1 loss aversion (loss rewards), hyperbolic discounting (front-loaded curve), WarioWare 4–8-beat (microgame readability).

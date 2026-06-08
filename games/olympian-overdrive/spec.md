@@ -1,12 +1,13 @@
 # Olympian Overdrive — Spec
 
-**Date:** 2026-05-24 (v3.0) · revised 2026-05-25 (v3.1 — fidelity uplift)
-**Status:** approved
-**Target mode:** pipeline
-**Spec version:** 3.1
-**Previous versions:** v1 — broken visuals (procedural rectangles), broken physics (no gravity), texture-key drift. v2 — added Texture Key Contract + Physics Tuning Targets; plays mechanically but lacks game feel.
+**Date:** 2026-05-24 (v3.0) · revised 2026-05-25 (v3.1 — fidelity uplift) · 2026-06-07 (v4 — roguelite progression layer)
+**Status:** approved (M1 contracts) · v4 roguelite layer is **design-contract + progression-DATA**, gated by the de-risking spike before generation
+**Target mode:** pipeline (M1 leaves) · **hand-architect core, generate modules** for the roguelite layer (see `roguelite-architecture.md`)
+**Spec version:** 4
+**Previous versions:** v1 — broken visuals (procedural rectangles), broken physics (no gravity), texture-key drift. v2 — added Texture Key Contract + Physics Tuning Targets; plays mechanically but lacks game feel. v3/v3.1 — four methodology contracts + per-rule IDs + fidelity uplift.
 **Changes in v3:** Adds the four contracts from [ai-game-spec-methodology.md](../../../AI-OS/02_DOMAIN_OS/NEXUS_OS/knowledge/ai/process/ai-game-spec-methodology.md) — Game Feel, expanded Difficulty, expanded Visual Style, QA. Bakes in postmortems from v1+v2 bugs (see `games-workshop-agent-state.md`). All v2 content that worked (Texture Key Contract, Physics Tuning Targets, Locked Decisions) preserved.
 **Changes in v3.1 (2026-05-25 fidelity uplift):** Spec Review of v3.0 scored Game Feel at 68% predicted fidelity (no per-rule IDs, no runtime verification). v3.1 addresses: (a) Texture Key Contract rewritten to enforce `{sport}_{role}_{variant}` namespace grammar and declare `asset-keys.js` manifest as the single source of truth (closes the asset-key drift surface from v1/v2); (b) Game Feel Contract gets GF-01..GF-12 IDs in an event-response table with measurable magnitudes plus a `?dev=1` runtime instrumentation gate so impact feedback is verified, not just specified; (c) Difficulty Contract gets DI-01..DI-08 IDs consolidating escalation + anti-frustration into one verifiable progression table; (d) House Rules expanded 16 → 19 to include the asset-key namespace contract from Round 2 sprint placement. All v3.0 content otherwise preserved.
+**Changes in v4 (2026-06-07 roguelite progression layer):** Folds the **locked roguelite design** ([`roguelite-evolution.md`](roguelite-evolution.md)) + its build-architecture ([`roguelite-architecture.md`](roguelite-architecture.md)) into the spec as five new contracts — **Run Structure (RS), Meta-Progression (MP), Equipment/Skill (EQ), Procedural Generation (PG), Overdrive (OD)** — plus a **Game Feel Audio layer (GF-A)** (audio arrives this milestone). Numbers were recovered verbatim from past research via `extract.js` (2026-06-07 re-review) and three open forks were decided with Charlie (run-length split; momentum-assist `floor(F/2)`+cap; payout %-intent/token-display). Per the methodology + architecture: **behavioral intent locked; literal numbers `[PLAYTEST-GATED]`/`[RESEARCH-GATED]`; generation gated behind the spike.** All v3.1 content preserved. v4 also slates audio + Greek-myth visuals (previously deferred to "v4").
 
 **Source:** Google Doc "Olympian Overdrive Retro Game Spec" — see `spec-raw.md`
 
@@ -266,6 +267,86 @@ Every DI-ID below is a load-bearing difficulty rule. Violating any of these = co
 
 ---
 
+## Roguelite Progression Layer  *(NEW IN v4 — RS / MP / EQ / PG / OD)*
+
+The five contracts below fold the locked roguelite design ([`roguelite-evolution.md`](roguelite-evolution.md)) and its recovered build-payload into the spec. They follow the methodology rule: **behavioral intent is locked now; literal numbers tagged `[PLAYTEST-GATED]` or `[RESEARCH-GATED]` are filled from the smallest-slice playtest, not invented.**
+
+> **Build sequencing (from [`roguelite-architecture.md`](roguelite-architecture.md) §7 — do not skip):** this layer is the **design-contract + progression-DATA** spec. It is consumed by the de-risking **SPIKE** (hand-build core + 2 sports), and only *after* the spike validates the architecture does the agent **generate the leaves** (sport/equipment/modifier/overdrive modules against fixed interfaces). v4 does **not** authorize whole-game generation — that failure mode is exactly what the 3-layer + content-seam architecture exists to prevent. The progression numbers here (Respect weighting, Mastery `N`, payout curve, pool size) are the "DATA in the progression config" the agnostic core reads.
+
+Data model is **oracle-grade** (recovered verbatim) and load-bearing for every downstream module — honor exact types:
+- `Respect` = a single **cumulative integer**, never reset, no decay, no multi-tier.
+- `Mastery` syllabus = strictly a **1-D boolean array** (one True/False per skill). No decay, no partial credit, no multi-tier.
+
+### Run Structure Contract (RS-01..RS-06)
+
+| ID | Rule | Value | Status | Verification |
+|---|---|---|---|---|
+| RS-01 | A run is **3 Matches × escalating rounds**, structure `Match → Draft → Match → Boss` | 3 matches × **4 / 5 / 6** rounds ≈ **15 rounds** | intent locked; round-count `[PLAYTEST-GATED]` (between raw's ~18 and synthesis's ~9–11) | RunController descriptor; playtest |
+| RS-02 | Target run length | **7–10 min**, hard cap enforced | `[PLAYTEST-GATED]` — the 12yo sets it | Playtest timing |
+| RS-03 | Each round is a single 5–15s microgame (the existing sport/mash-up loop) | 5–15s | locked | Code: round timer bounds |
+| RS-04 | **A run terminates ONLY when the `runLives` integer reaches 0** — never on a single microgame failure | `runLives` int, base 3 | locked (raw RS-04) | Static: run-end path keyed on `runLives<=0` only |
+| RS-05 | Run state (HP, loadout, draft picks, round, seed, score) lives in **RunController**, destroyed per run; never in PersistentStore | — | locked | Code review: save-key allow-list (architecture §2) |
+| RS-06 | Draft occurs **between** matches (pick-1-of-3); the boss is the final Match's last beat (telegraphed) | — | locked | Scene-flow review |
+
+### Meta-Progression Contract (MP-01..MP-09)
+
+| ID | Rule | Value | Status | Verification |
+|---|---|---|---|---|
+| MP-01 | **Respect** grows **challenge-weighted** — a close loss in a harder tier is worth more than an easy win in a lower one | challenge multiplier 3-step **0.9 / 1.0 / 1.2** | intent locked; curve `[RESEARCH-GATED]` (synthesis rejected 1.3× as failure-farmable) | Code: reward = base × challengeMult; playtest |
+| MP-02 | **Mastery** is demonstrated by a **consistency threshold**, never a single success: a rolling array of the last **4** binary outcomes, pass = **3-of-4** | rolling-4, 3-of-4 | locked (BKT-grounded) | Code: gate evaluates `bools.slice(-4).filter(Boolean).length>=3` |
+| MP-03 | **Tryout = diagnostic, not punishment**: a boolean success/fail array over **3 pre-determined microgames**; on fail, highlight the missing skill icon **red** (zero dynamic text) and route to the development tournament that teaches it | 3-microgame bool array | locked (the thesis, DI-09) | Code + playtest |
+| MP-04 | **Payout model = percentage intent, token display**: reward is computed on the % curve, surfaced to the player as whole shard tokens | R1 wipe **15%** / final-round loss **85%** / full win **120%** of next unlock | DECIDED 2026-06-07; absolute token costs `[PLAYTEST-GATED]` | Code: reward math derives from % curve, not flat per-round stipend |
+| MP-05 | **Minimum payout floor**: a failed run must still award **≥ the cost of the cheapest permanent-upgrade node** | ≥ cheapest node (raw worked example: 50) | locked (the "losses are fuel" teeth) | Static: floor clamp present on run-end reward |
+| MP-06 | **Momentum assist (subtractive difficulty)**: effective run-lives = `base + min(floor(F/2), 3)`, where `F` = consecutive failures in the current tier (accumulating, capped at +3) | base 3, +1 per 2 fails, cap +3 | DECIDED 2026-06-07 | Code: exact formula; playtest |
+| MP-07 | Two currencies, distinct scope: a **run-scoped temporary** currency (Hype/Momentum) spent between rounds on temporary gear; a **permanent** currency (Soul Shards) spent in the locker room on permanent unlocks | — | locked | Code: temp currency in RunController, permanent in PersistentStore |
+| MP-08 | Loss-reward generosity (North Star: losses are fuel): standard loss = **60%** of a win; close loss = **80%** | 60% / 80% | `[PLAYTEST-GATED]` (synthesis values; more generous than raw 50/65–75) | Playtest |
+| MP-09 | Permanent currency is **front-loaded and loss-friendly** — never a configuration where an early wipe nets ~zero | — | locked | Playtest + MP-05 |
+
+### Equipment / Skill Contract (EQ-01..EQ-07)
+
+| ID | Rule | Value | Status | Verification |
+|---|---|---|---|---|
+| EQ-01 | Edge is **rule-CHANGING verbs, never `+%` stat bumps**; never shrink hitboxes or inflate AI speed (ties DI-02 / DI-03 / DI-07) | — | locked | Static: grep item defs for `*= `, hitbox/AI-speed writes — fail on match |
+| EQ-02 | **One data-driven, tag-based item schema, two tiers** via a `source`/`rarity` field: `draft` (common run-floor) vs `overdrive` (premium, rule-bending, won in Overdrive) | one schema | locked (DP3/DP4) | Schema review |
+| EQ-03 | **Gear** = run-scoped rule-changing verbs (reset per run). **Skills** = **permanent technique unlocks that become demonstrable Mastery competencies** (edge feeds the L1 learning loop) | — | locked | Code: gear in RunController, skills write Mastery array |
+| EQ-04 | **Orthogonality**: no two items in the pool may share the same functional logic | — | locked (the variety teeth) | Static: functional-signature dedupe in validator |
+| EQ-05 | Every item carries **1–3 System Tags** from a controlled vocabulary (e.g. `[Retry] [Control] [Ricochet] [Chaos]`) | 1–3 tags | locked | Schema validator |
+| EQ-06 | **Pool size + active cap**: tier-1 pool ≈ **12–14** items; **max active = 3**. The cap is the variety lever, not a budget — `C(n,k)`: `C(24,3)=2,024` vs `C(24,4)=10,626` unique builds; the over-scope cliff is hard-coded **pairing** exceptions, not raw count | pool ~12–14, max active 3 | active-cap locked; pool size `[PLAYTEST-GATED]` | Validator: active ≤ 3 |
+| EQ-07 | Active abilities use **discrete charges per Match**, never real-time cooldown timers | per-Match charges | locked | Code review |
+
+### Procedural Generation Contract (PG-01..PG-04)
+
+| ID | Rule | Value | Status | Verification |
+|---|---|---|---|---|
+| PG-01 | **RNG scope is bounded** to exactly: round order, modifier assignment, draft offerings, and boss variant. Nothing else is procedural (no procedural physics, hitboxes, or AI tuning) | 4 allowed axes | locked | Static: RNG calls confined to these systems |
+| PG-02 | **Draft = pick-1-of-3, synergy-weighted**: increased probability of offering an item sharing a System Tag with current inventory, but **always keep ≥1 wildcard** (anti-tunnel) | 3 options, ≥1 wildcard | locked | Code + playtest |
+| PG-03 | RNG is **seeded** from the run seed (RunController), Phaser RNG `seed` set as an array in game config — for reproducible playtests and E2E determinism | seeded | locked (else defaults to `Date.now`) | Static: seed wired; QA reproducibility |
+| PG-04 | Procedural selection **never** introduces a tightness spike (ties DI-07) — variety only | — | locked | Design + playtest |
+
+### Overdrive Contract (OD-01..OD-06)
+
+| ID | Rule | Value | Status | Verification |
+|---|---|---|---|---|
+| OD-01 | Overdrive is a **per-tier boss-equivalent** for the first build: telegraphed, climactic, predictable. Random interrupts deferred to v1.1 | per-tier boss | locked (DP7) | Scene-flow review |
+| OD-02 | Chaos comes from **fusion / variety, never tightness** (DI-07); introduce **one new wrinkle at a time** (DI-06); always **telegraphed** (DI-08) | — | locked | Playtest |
+| OD-03 | Overdrive is **the one place winning matters** and the **source of premium gear/skills** | — | locked | Design |
+| OD-04 | **Losing Overdrive = no premium reward, never a run-ender** | — | locked (anti-frustration) | Code: loss path cannot decrement to run-end |
+| OD-05 | **Same-viewMode fusion only**: `canFuse(a,b) => a.viewMode === b.viewMode`. Cross-paradigm (top-down × side-scroller) fusion is **forbidden in v1** (would explode the content seam) | same-viewMode | locked (architecture §5) | Static: `canFuse` guard present |
+| OD-06 | Overdrive cadence / frequency | — | `[RESEARCH-GATED]` | Playtest |
+
+### Game Feel — Audio Layer (GF-A01..GF-A04)  *(v4 — audio arrives this milestone)*
+
+Audio was deferred from M1 (Locked Decision #5); v4 adds it. These are recovered build-payload (GF contract), oracle-grade.
+
+| ID | Rule | Value | Status | Verification |
+|---|---|---|---|---|
+| GF-A01 | **Win** feedback = a **high-frequency major-chord** chime | major chord, high freq | locked | Runtime: `?dev=1` audio event log |
+| GF-A02 | **Loss** feedback = a **low-frequency descending minor-chord** | descending minor, low freq | locked | Runtime audio event log |
+| GF-A03 | **Failure must be energetic / comical**, never deflating — paired with a full-screen high-contrast stamp (core anti-frustration mandate, ties Q-S03 / DI success metric) | — | locked | Kid playtest |
+| GF-A04 | Player character renders in **saturated primary** color; backgrounds **desaturated / darkened** so the player and ball read first (ties VI-07 / VI-08) | — | locked | Visual review |
+
+---
+
 ## Visual Style Contract  *(EXPANDED IN v3)*
 
 ### Style statement
@@ -368,7 +449,33 @@ Game Builder Agent's Postmortem routine flags these for Charlie.
 | Q-S04 | Difficulty feels energetic, not punishing | Did kid want another round? |
 
 ### Acceptance gate
-Ship-ready when: all Q-M01 to Q-M08 pass, all Q-R01 to Q-R06 pass, at least 3 of 4 Q-S checks pass.
+**M1 (current):** ship-ready when all Q-M01 to Q-M08 pass, all Q-R01 to Q-R06 pass, at least 3 of 4 Q-S01-S04 checks pass.
+
+**Roguelite layer (post-spike):** additionally all Q-M09 to Q-M16 pass; Q-S05 to Q-S08 are the playtest gates that ratify the `[PLAYTEST-GATED]` numbers before they lock. **The spike (architecture section 7) must pass first** — both view modes compose through one `RoundScene`, a run commits meta on end, and a sport module drops in cleanly — before any leaf generation is authorized.
+
+### Roguelite-layer checks (v4 — apply post-spike, when the layer is built)
+
+Static (must pass — would block ship of the roguelite layer):
+
+| ID | Rule | Caught at |
+|---|---|---|
+| Q-M09 | Run ends ONLY on `runLives <= 0` — no run-end path keyed on a single microgame failure (RS-04) | Static scan |
+| Q-M10 | Save-key allow-list honored: HP / loadout / draft / round / seed / score are NOT written to `PersistentStore` (RS-05) | Static scan |
+| Q-M11 | `Respect` is an integer field; `Mastery` is a boolean array — no float/object drift (MP-01/MP-02, House Rule 17) | Static scan |
+| Q-M12 | No equipment item applies a `+%` multiplier, hitbox resize, or AI-speed write (EQ-01) | Static scan: grep item defs |
+| Q-M13 | Equipment validator enforces `max active <= 3`, `1-3` tags, and functional-signature orthogonality (EQ-04/05/06) | Validator |
+| Q-M14 | RNG calls confined to round order / modifier assignment / draft offerings / boss variant; run seed wired into Phaser config (PG-01/PG-03) | Static scan |
+| Q-M15 | `canFuse(a,b)` guards same-`viewMode` only; no cross-paradigm fusion path (OD-05) | Static scan |
+| Q-M16 | Every generated module conforms to its validator + passes the 3-frame smoke harness before ship (architecture section 4) | Smoke harness |
+
+Playtest (the smallest-slice question — the gate that fills the `[PLAYTEST-GATED]` numbers):
+
+| ID | Check | Method |
+|---|---|---|
+| Q-S05 | A failed tryout reads as a **diagnostic** ("here's the one thing to learn"), not a punishment (MP-03 / DI-09) | Kid playtest |
+| Q-S06 | An early-run wipe still feels rewarding (min payout floor lands; "losses are fuel") (MP-05/MP-09) | Kid playtest |
+| Q-S07 | A run lands in **7-10 min** and the 12yo wants another (RS-01/RS-02 number-setting) | Timed kid playtest |
+| Q-S08 | Overdrive reads as a climactic **opportunity**, telegraphed, and a loss never ends the run (OD-02/OD-04) | Kid playtest |
 
 ---
 
@@ -394,9 +501,21 @@ Ship-ready when: all Q-M01 to Q-M08 pass, all Q-R01 to Q-R06 pass, at least 3 of
 9. Debug skip key: `N` (fail+skip), `W` (win+skip), `0` (return to menu).
 10. Texture key contract — no AI invention allowed.
 
+**Roguelite architecture locks (v4 — from `roguelite-architecture.md`, the build foundation for RS/MP/EQ/PG/OD):**
+11. **3 state layers**, not a single `GameManager`-on-registry: `PersistentStore` (+`localStorage`) / `RunController` (per-run, in-memory) / scene-local. `game.registry` is a service locator + event bridge, never the domain model.
+12. **One generic `RoundScene`** loads a registered sport def and applies its declared `viewMode` via a `VIEW_PRESETS` table — **not a scene per sport**.
+13. **Additive registries only** — sports / equipment / modifiers / overdrives self-register through a `ContentRegistry`; the core never edits switch statements. Generated modules are additive leaves.
+14. **Centralized transitions** via a `SceneFlow` service with a single in-flight guard cleared in `finally`; scenes *request* transitions, never freestyle `start()` + sticky flags (fixes the v2 soft-lock class).
+15. **Versioned save migrations from day one** (`SAVE_KEY` + `schemaVersion` + migration pipeline) + corruption/first-run handling. No fake encryption (base64 is not security).
+16. **Data-vs-behavior module boundary, locked:** module *data* = ids/labels/weights/tags/tuning/unlock-reqs; module *behavior* = `createRound`/`applyToRun`/`applyToRound`/`compose` only. Generated modules may NOT invent new lifecycle methods, import other modules, touch `localStorage`, or trigger transitions.
+17. **`Respect` = cumulative integer; `Mastery` = 1-D boolean array** (no decay, no multi-tier) — the oracle-grade data model every progression module reads (MP-01/MP-02).
+18. **Spike before generation:** hand-build the core + 2 sports (1 top-down, 1 side-scroller) and prove it composes BEFORE generating the rest of the leaves (architecture section 7).
+
 ---
 
-## House Rules for the Pipeline Build (19 rules — see `feedback_phaser_house_rules.md` memory)
+## House Rules for the Pipeline Build (21 rules — see `feedback_phaser_house_rules.md` memory)
+
+**New in v4:** rules #20-21 (scene lifecycle + view-transition discipline, recovered from `roguelite-build-architecture` via the 2026-06-07 extract.js re-review). **Rule #21 is also promoted to the universal `build-game.js` HOUSE_RULES** (cross-build ratchet — every future game inherits it) per the dual-write routing model. The v4 roguelite **architecture locks (Locked Decisions #11-18)** also bind any roguelite-layer build — they are the structural contract the RS/MP/EQ/PG/OD modules generate against.
 
 These get injected into `build-game.js` system prompt verbatim. New since v2: rules #14-16 (v2 build session). New since v3 spec authoring: rules #17-19 (asset-key namespace contract from Round 2 sprint placement, 2026-05-24) — these are enforced by the pre-build static checker.
 
@@ -419,6 +538,8 @@ These get injected into `build-game.js` system prompt verbatim. New since v2: ru
 17. **Never use a raw string literal for a Phaser asset key outside the canonical asset manifest file.** All asset keys live in `asset-keys.js` and are imported everywhere else. This eliminates duplicate sources of truth — the largest contract-drift surface in v1/v2.
 18. **All sport-specific asset keys must use `{sport}_{role}_{variant}` in lowercase snake_case.** The `sport` segment is mandatory and first. The `variant` segment is mandatory and last, including `default` when there is only one version. Banned generic standalone keys: `ball`, `player`, `court`, `net`, `goal`, `paddle`. Reordered forms like `ball_soccer` are also banned — namespace first or fail.
 19. **BootScene must preload assets by iterating the canonical `asset-keys.js` manifest.** Do not hand-type preload keys inline — that recreates the exact drift surface we are trying to remove. Pre-build static check fails the build if raw string asset keys appear in any consumer file.
+20. **Every scene keeps a `_disposers[]` array**, registers all external listeners/timers through it, and flushes them on `Phaser.Scenes.Events.SHUTDOWN`. No naked `setInterval` (Phaser timers only); no scene-to-scene refs; no scene writes the save except via `PersistentStore`. (Recovered: registry-listener duplication after N transitions causes one pickup to fire N UI updates.)
+21. **View / encounter transitions use pause / sleep / wake, not teardown + rebuild.** To switch a view context (top-down to side-scroller) or pause for an encounter, `sleep` the scene (halts update + WebGL render, KEEPS allocations) and restore with `wake` so a procedural map is never reallocated/regenerated on return. Use `pause` when render state must stay visible. Never `stop()`+`start()` a scene whose generated/procedural state must persist. (Universal rule, also in `build-game.js` HOUSE_RULES.)
 
 ---
 
@@ -439,3 +560,11 @@ Capture Q-S01 to Q-S04 in kid playtest session — record reactions, append to `
 - Audio → kid session
 - Touch controls → mobile shipping
 - `review-game.js` + `playtest-game.js` automation → separate tool builds (Sprint 1 #7 design)
+
+## Out of scope / deferred for v4 (the roguelite layer)
+- **Whole-game generation of the roguelite layer** — forbidden. Hand-build the core (3 state layers, `ContentRegistry`, `SceneFlow`, `RoundScene` + `VIEW_PRESETS`, validators + smoke harness), then generate leaves. The de-risking **spike comes first** (architecture §7).
+- **Cross-paradigm Overdrive fusion** (top-down × side-scroller) → forbidden in v1; hand-built exception only if ever (OD-05).
+- **Random Overdrive interrupts** → v1.1; v1 is per-tier boss-equivalent only (OD-01).
+- **Suspend/resume of an in-progress run** → later; would need a separate `activeRunSnapshot` save key, never mixed into meta.
+- **Filling the `[PLAYTEST-GATED]` / `[RESEARCH-GATED]` numbers** (run round-count, Respect weighting curve, Mastery `N`, pool size, payout token costs, Overdrive cadence) → set by the smallest-slice playtest / a games-design research pass, not invented now.
+- **Tooling for the harness** (`playtest-game.js` GPU/determinism/seed contracts) → its own build; recovered build-payload banked in `HOBBES_BACKLOG.md` (2026-06-07).
