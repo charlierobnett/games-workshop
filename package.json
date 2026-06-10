@@ -9,6 +9,7 @@
     "playtest": "node scripts/playtest-game.js"
   },
   "devDependencies": {
+    "exceljs": "^4.4.0",
     "playwright": "^1.49.0"
   }
 }

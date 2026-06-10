@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Olympian Overdrive — Architecture Spike</title>
+    <style>
+      html, body { margin: 0; background: #0a0a0a; color: #ccc; font-family: monospace; }
+      #wrap { display: flex; flex-direction: column; align-items: center; padding: 16px; }
+      #game { image-rendering: pixelated; box-shadow: 0 0 0 2px #2ef2ff44; }
+      p { max-width: 640px; font-size: 12px; color: #888; }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <h3 style="color:#2ef2ff">Olympian Overdrive — Roguelite Architecture Spike</h3>
+      <div id="game"></div>
+      <p>De-risking build: one RoundScene hosts a top-down sport (Pickle Rally) and a
+      side-scroller sport (Hurdle Dash) through one helper surface. A run flows across
+      both, commits Respect + Mastery to localStorage on end. Arrows move, Z = strike / jump / confirm.</p>
+    </div>
+    <script type="module" src="/src/spike/main.js"></script>
+  </body>
+</html>

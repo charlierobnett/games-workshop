@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Olympian Overdrive — How We Build It Together</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --panel: #103a2b;
+      --panel2: #0d2b20;
+      --cyan: #2ef2ff;
+      --lime: #7bff00;
+      --magenta: #ff2d55;
+      --gold: #ffe066;
+      --ink: #eaf6f1;
+      --dim: #8aa39a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink);
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+    a { color: var(--cyan); }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 20px 18px 64px; }
+
+    header { text-align: center; padding: 14px 0 6px; }
+    header h1 { margin: 0; font-size: 26px; letter-spacing: 1px;
+      color: var(--cyan); text-shadow: 0 0 14px #2ef2ff55; }
+    header .sub { color: var(--gold); font-size: 13px; margin-top: 6px; }
+
+    nav { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      margin: 18px 0 22px; }
+    nav button { font-family: inherit; font-size: 13px; cursor: pointer;
+      color: var(--dim); background: #111; border: 2px solid #1f3a30;
+      padding: 9px 14px; border-radius: 8px; transition: all .12s; }
+    nav button:hover { color: var(--ink); border-color: #2f5848; }
+    nav button.active { color: var(--bg); background: var(--cyan);
+      border-color: var(--cyan); font-weight: bold; }
+
+    .tab { display: none; animation: fade .2s ease; }
+    .tab.active { display: block; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+    .panel { background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border: 1px solid #1f5a44; border-radius: 12px; padding: 18px 20px;
+      margin: 14px 0; box-shadow: 0 0 0 1px #0a0a0a, 0 8px 30px #00000060; }
+    h2 { color: var(--lime); margin: 4px 0 12px; font-size: 19px; }
+    h3 { color: var(--cyan); margin: 16px 0 6px; font-size: 15px; }
+    p, li { line-height: 1.55; font-size: 14px; }
+    .lead { font-size: 15px; color: var(--ink); }
+    .big { font-size: 17px; color: var(--gold); line-height: 1.5; }
+    em { color: var(--gold); font-style: normal; }
+    strong { color: var(--cyan); }
+
+    .deal { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+    .deal .col { background: #0c0c0c; border: 1px solid #233; border-radius: 10px; padding: 12px 14px; }
+    .deal .col.ai { border-color: #2f5848; }
+    .deal .col.you { border-color: var(--magenta); }
+    .deal h4 { margin: 0 0 8px; font-size: 13px; }
+    .deal.ai h4 { color: var(--cyan); }
+    .deal ul { margin: 0; padding-left: 18px; }
+
+    .crew { text-align: center; background: #0c0c0c; border: 2px dashed var(--magenta);
+      border-radius: 12px; padding: 16px; margin: 16px 0; }
+    .crew .names { font-size: 20px; color: var(--magenta); letter-spacing: 2px; }
+
+    /* Play tab */
+    .toggle { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .toggle button { font-family: inherit; cursor: pointer; font-size: 13px; padding: 10px 16px;
+      border-radius: 8px; background: #111; color: var(--dim); border: 2px solid #1f3a30; }
+    .toggle button.active { background: var(--lime); color: #0a2a00; border-color: var(--lime); font-weight: bold; }
+    .stage { display: flex; flex-direction: column; align-items: center; }
+    .framebox { width: 660px; max-width: 100%; background: #000;
+      border: 2px solid #2ef2ff44; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 0 24px #2ef2ff22; }
+    iframe { width: 100%; height: 500px; border: 0; display: block; }
+    .caption { font-size: 12.5px; color: var(--dim); max-width: 640px; text-align: center; margin: 12px auto 0; }
+    .controls { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--gold);
+      border: 1px solid #4a431f; border-radius: 8px; padding: 6px 12px; }
+
+    /* Loop */
+    .loop { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0 4px; }
+    .step { background: #0c0c0c; border: 1px solid #233; border-radius: 10px; padding: 12px; }
+    .step .n { color: var(--bg); background: var(--cyan); border-radius: 50%; width: 22px; height: 22px;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+    .step .t { color: var(--lime); font-weight: bold; font-size: 13px; margin-left: 6px; }
+    .step p { font-size: 12.5px; color: var(--dim); margin: 8px 0 0; }
+    .step.you { border-color: var(--magenta); box-shadow: 0 0 14px #ff2d5522; }
+    .step.you .t { color: var(--magenta); }
+    .rhythm { background: #0c0c0c; border-left: 3px solid var(--gold); border-radius: 8px; padding: 12px 14px; margin: 14px 0; }
+    .rhythm b { color: var(--gold); }
+
+    /* Mission aspects */
+    .aspects { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+    .aspect { background: #0c0c0c; border: 1px solid #233; border-radius: 10px; padding: 11px 13px; }
+    .aspect .a { color: var(--cyan); font-weight: bold; font-size: 13px; }
+    .aspect .q { color: var(--dim); font-size: 12.5px; margin-top: 4px; }
+    .steal { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+    .steal .s { background: #0c0c0c; border-radius: 10px; padding: 12px 14px; border: 1px solid #233; }
+    .steal .s.good { border-color: var(--lime); }
+    .steal .s.bad { border-color: var(--magenta); }
+    .steal .s h4 { margin: 0 0 6px; font-size: 13px; }
+    .steal .good h4 { color: var(--lime); }
+    .steal .bad h4 { color: var(--magenta); }
+    .soon { text-align: center; background: #0c0c0c; border: 1px dashed var(--cyan);
+      border-radius: 10px; padding: 14px; margin: 16px 0; color: var(--cyan); font-size: 13px; }
+
+    footer { text-align: center; color: var(--dim); font-size: 11px; margin-top: 24px; }
+    .pill { display: inline-block; background: #0c0c0c; border: 1px solid #233; border-radius: 20px;
+      padding: 3px 10px; font-size: 11px; color: var(--gold); margin: 2px; }
+    @media (max-width: 680px) { .deal, .aspects, .steal, .loop { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>⚡ OLYMPIAN OVERDRIVE ⚡</h1>
+      <div class="sub">How we build a video game together — humans + AI</div>
+    </header>
+
+    <nav>
+      <button data-tab="vision" class="active">1 · What We're Building</button>
+      <button data-tab="play">2 · Play It Today</button>
+      <button data-tab="work">3 · How We Work</button>
+      <button data-tab="mission">4 · Your Mission</button>
+    </nav>
+
+    <!-- TAB 1 -->
+    <section class="tab active" id="vision">
+      <div class="panel">
+        <h2>We're building a real video game — with an AI partner.</h2>
+        <p class="big">The AI (we call it <strong>Hobbes</strong>) can build incredibly fast. But here's the
+          secret it can't do: <em>it cannot tell what's actually FUN.</em></p>
+        <p class="lead">That's the human job. That's <em>your</em> job. A computer can make a game that
+          <strong>works</strong> — but only a person can make a game that <strong>feels great</strong>.</p>
+      </div>
+
+      <div class="panel">
+        <h3>The three pieces</h3>
+        <p><strong>🤖 Hobbes</strong> — the AI partner. It researches great games, writes the exact "rules"
+          of our game (the spec), generates the code, and fixes its own bugs.</p>
+        <p><strong>🎮 Olympian Overdrive</strong> — our game. A sports adventure where you climb a career
+          (JV → Varsity → … → Olympics), and <em>losing makes you stronger</em> instead of just ending the run.</p>
+        <p><strong>🔁 The Way We Work</strong> — a loop where humans bring <em>taste &amp; feel</em> and AI
+          brings <em>speed &amp; structure</em>. Neither one builds a great game alone.</p>
+
+        <h3>The deal</h3>
+        <div class="deal">
+          <div class="col ai">
+            <h4>⚙️ AI is great at</h4>
+            <ul>
+              <li>Writing tons of code, fast</li>
+              <li>Following exact rules</li>
+              <li>Researching &amp; organizing</li>
+              <li>Never getting tired</li>
+            </ul>
+          </div>
+          <div class="col you">
+            <h4 style="color:var(--magenta)">🧠 Humans are great at</h4>
+            <ul>
+              <li>Knowing what's <em>fun</em></li>
+              <li>Feeling when something's "off"</li>
+              <li>Taste, style, surprise</li>
+              <li>Knowing when to break a rule</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="crew">
+        <div class="names">JACK &amp; NOLA</div>
+        <p style="margin:8px 0 0">You two are the <strong>Game Feel Crew</strong>. Your taste is the one thing
+          the AI literally cannot do — which makes you the most important part of the whole machine.</p>
+      </div>
+    </section>
+
+    <!-- TAB 2 -->
+    <section class="tab" id="play">
+      <div class="panel">
+        <h2>Play what we've built so far</h2>
+        <p class="lead">Two versions show how the game is growing. Pick one — it loads live below.</p>
+        <div class="toggle">
+          <button data-build="prototype" class="active">🏓 The Sports Prototype <span style="color:#0a2a00">(the feel)</span></button>
+          <button data-build="engine">🧩 The New Engine <span>(the architecture)</span></button>
+        </div>
+        <div class="stage">
+          <div class="framebox"><iframe id="gameframe" title="game" src="about:blank"></iframe></div>
+          <div class="controls">⌨️ Arrow keys = move &nbsp;·&nbsp; Z = strike / jump / start</div>
+          <p class="caption" id="buildcaption"></p>
+        </div>
+      </div>
+      <div class="panel" style="font-size:12.5px;color:var(--dim)">
+        💡 If the game area is blank, make sure the dev server is running
+        (<code>npm run dev</code>) and you opened this page at <code>localhost:5174/showcase.html</code>.
+        Click the game first so it hears your keys.
+      </div>
+    </section>
+
+    <!-- TAB 3 -->
+    <section class="tab" id="work">
+      <div class="panel">
+        <h2>How a great game actually gets made</h2>
+        <p class="lead">We don't just "make a game." We run a <strong>loop</strong>, and every trip around
+          makes the game better. Here's one lap:</p>
+        <div class="loop">
+          <div class="step"><span class="n">1</span><span class="t">Research</span>
+            <p>Study great games &amp; ask deep questions. (This is where YOU come in.)</p></div>
+          <div class="step"><span class="n">2</span><span class="t">Synthesize</span>
+            <p>The AI digests all the notes into clear, usable lessons.</p></div>
+          <div class="step"><span class="n">3</span><span class="t">Spec</span>
+            <p>We write the exact rules of the game — every number, every feel.</p></div>
+          <div class="step"><span class="n">4</span><span class="t">Build</span>
+            <p>The AI generates the code from the spec.</p></div>
+          <div class="step you"><span class="n">5</span><span class="t">Test (you!)</span>
+            <p>You play it and say what's fun, what's broken, what's missing.</p></div>
+          <div class="step"><span class="n">6</span><span class="t">Refine</span>
+            <p>Back to the top — smarter every time.</p></div>
+        </div>
+        <p class="caption" style="text-align:left">Fun fact: right now we're even using this loop to research
+          <em>the best way for you to take notes</em>. We take your findings that seriously.</p>
+      </div>
+
+      <div class="panel">
+        <h3>Our weekly rhythm</h3>
+        <div class="rhythm">
+          <p>📅 <b>During the week</b> — you play retro games and log what you find.</p>
+          <p>🛋️ <b>Each weekend</b> — we regroup, the AI synthesizes your notes, we update the spec, and build a new version.</p>
+          <p>🔁 <b>Next week</b> — you test the new build <em>and</em> keep researching. The game gets better every single week.</p>
+        </div>
+        <p class="big" style="text-align:center">Your testing isn't a chore at the end — it's the
+          <strong>steering wheel</strong>. Every lap is pointed by what you found fun.</p>
+      </div>
+    </section>
+
+    <!-- TAB 4 -->
+    <section class="tab" id="mission">
+      <div class="panel">
+        <h2>🔎 Your mission: become Retro Game Detectives</h2>
+        <p class="lead">Play the classics — <span class="pill">NES</span><span class="pill">SNES</span>
+          <span class="pill">Genesis</span><span class="pill">Game Boy</span> — and figure out <em>why</em>
+          the great ones feel great, and why the annoying parts annoy. Every game you test makes our game smarter.</p>
+
+        <h3>What to pay attention to while you play</h3>
+        <div class="aspects">
+          <div class="aspect"><div class="a">🎬 Menu &amp; Start</div><div class="q">Easy to know what to do? Did it look cool?</div></div>
+          <div class="aspect"><div class="a">🕹️ Navigation &amp; Controls</div><div class="q">Did moving feel smooth, or clunky?</div></div>
+          <div class="aspect"><div class="a">🏠 Home World / Hub</div><div class="q">Was the "home base" fun to be in?</div></div>
+          <div class="aspect"><div class="a">📈 Progression</div><div class="q">Did getting stronger / unlocking stuff feel rewarding?</div></div>
+          <div class="aspect"><div class="a">⚙️ Mechanics</div><div class="q">What's the main thing you DO? Is it satisfying?</div></div>
+          <div class="aspect"><div class="a">🗺️ Level Design</div><div class="q">Were the levels interesting, or boring/confusing?</div></div>
+          <div class="aspect"><div class="a">⭐ Power-ups / Items</div><div class="q">Did they feel exciting and game-changing?</div></div>
+          <div class="aspect"><div class="a">💥 Game Feel / Juice</div><div class="q">Hits, sounds, screen shake — did it feel punchy?</div></div>
+          <div class="aspect"><div class="a">⚖️ Fairness</div><div class="q">When you lost, was it fair? Did you want to retry?</div></div>
+        </div>
+
+        <h3>How you log it — catch the moments</h3>
+        <p>You write two kinds of notes: <strong>Moments</strong> (something that hits you <em>while</em> you're
+          playing — a great power-up, a cheap death, a boring stretch — logged right then) and a
+          <strong>Wrap</strong> (a quick summary at the end of each session). The golden rule:
+          <em>catch it in the moment</em> — don't wait until the end and try to remember, because you'll only
+          remember the last thing.</p>
+
+        <h3>In your end-of-session Wrap, the two big answers</h3>
+        <div class="steal">
+          <div class="s good"><h4>✅ The ONE thing I'd STEAL</h4>
+            <p style="margin:0;font-size:13px">The single best idea worth putting in our game.</p></div>
+          <div class="s bad"><h4>❌ The ONE thing that RUINED it</h4>
+            <p style="margin:0;font-size:13px">The single most annoying thing we should never do.</p></div>
+        </div>
+
+        <h3>Jack &amp; Nola — your own pages</h3>
+        <p>Your research log has a <strong>tab for Jack</strong> and a <strong>tab for Nola</strong>, plus a
+          <strong>Weekend Synthesis</strong> page where the AI gathers both of your findings and turns them
+          into real changes to the game — with <strong>your name on the change</strong> when your idea ships.</p>
+
+        <div class="soon">✅ Your research log is <em>ready</em> — and we designed it the right way: by running a real research sprint on how players your age best capture findings. It is the <strong>Game Research Log</strong> (a tab for each of you + a Weekend Synthesis page). Ask Dad to open it — your first official week starts now. 🚀</div>
+      </div>
+    </section>
+
+    <footer>Olympian Overdrive · built by the Robnett Game Studio (humans + Hobbes) · showcase v1</footer>
+  </div>
+
+  <script>
+    // Tab switching
+    const tabs = document.querySelectorAll('nav button');
+    const sections = document.querySelectorAll('.tab');
+    tabs.forEach(btn => btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('active'));
+      sections.forEach(s => s.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'play') ensureBuildLoaded();
+    }));
+
+    // Play tab: lazy-load one iframe at a time so both Phaser games don't boot together
+    const BUILDS = {
+      prototype: {
+        src: './index.html',
+        caption: 'The Sports Prototype — real Pickleball & Soccer with sprites. This was our first test of how the sports FEEL. (Older engine, no progression yet.)'
+      },
+      engine: {
+        src: './spike.html',
+        caption: 'The New Engine — runs a top-down sport AND a side-scroller in ONE engine, with a Respect + Mastery progression loop. It looks like colored blocks because we built the SKELETON first — the art comes later. Press Z to start a run.'
+      }
+    };
+    const frame = document.getElementById('gameframe');
+    const cap = document.getElementById('buildcaption');
+    const toggleBtns = document.querySelectorAll('.toggle button');
+    let current = 'prototype';
+    let loaded = false;
+
+    function loadBuild(key) {
+      current = key;
+      frame.src = BUILDS[key].src;
+      cap.textContent = BUILDS[key].caption;
+      toggleBtns.forEach(b => b.classList.toggle('active', b.dataset.build === key));
+    }
+    function ensureBuildLoaded() { if (!loaded) { loaded = true; loadBuild(current); } }
+    toggleBtns.forEach(b => b.addEventListener('click', () => loadBuild(b.dataset.build)));
+  </script>
+</body>
+</html>
